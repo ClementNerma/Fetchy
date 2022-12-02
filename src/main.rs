@@ -474,6 +474,8 @@ async fn install_packages(
             Some(index) => app_state.installed[index] = installed,
             None => app_state.installed.push(installed),
         }
+
+        println!();
     }
 
     Ok(to_install.len())
