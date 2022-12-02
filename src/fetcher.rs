@@ -1,5 +1,6 @@
 use std::{
     borrow::Cow,
+    os::unix::prelude::PermissionsExt,
     path::{Path, PathBuf},
     time::SystemTime,
 };
@@ -295,6 +296,12 @@ pub async fn fetch_package(
 
     for file in &files_to_copy {
         on_message(&format!("Copying binary: {}...", file.rename_to));
+
+        file.current_path
+            .metadata()
+            .context("Failed to get file's metadata")?
+            .permissions()
+            .set_mode(0o744);
 
         fs::copy(&file.current_path, bin_dir.join(&file.rename_to))
             .await
