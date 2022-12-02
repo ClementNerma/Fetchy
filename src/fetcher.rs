@@ -297,13 +297,9 @@ pub async fn fetch_package(
     for file in &files_to_copy {
         on_message(&format!("Copying binary: {}...", file.rename_to));
 
-        file.current_path
-            .metadata()
-            .context("Failed to get file's metadata")?
-            .permissions()
-            .set_mode(0o744);
+        let bin_path = bin_dir.join(&file.rename_to);
 
-        fs::copy(&file.current_path, bin_dir.join(&file.rename_to))
+        fs::copy(&file.current_path, &bin_path)
             .await
             .with_context(|| {
                 format!(
@@ -311,6 +307,12 @@ pub async fn fetch_package(
                     file.rename_to
                 )
             })?;
+
+        bin_path
+            .metadata()
+            .context("Failed to get file's metadata")?
+            .permissions()
+            .set_mode(0o744);
     }
 
     Ok(InstalledPackage {
