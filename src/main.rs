@@ -103,29 +103,35 @@ async fn inner() -> Result<()> {
             repositories_changed = false;
         }
 
-        Action::AddRepo(AddRepoArgs { file }) => {
+        Action::AddRepo(AddRepoArgs { file, ignore }) => {
             let repo = fetch_repository(&RepositorySource::File(file.clone())).await?;
 
-            if repositories
+            let already_exists = repositories
                 .list
                 .iter()
-                .any(|other| other.content.name == repo.name)
-            {
-                bail!(
-                    "Another repository is already registered with the name: {}",
-                    repo.name.bright_magenta()
-                );
+                .any(|other| other.content.name == repo.name);
+
+            if already_exists {
+                if !ignore {
+                    bail!(
+                        "Another repository is already registered with the name: {}",
+                        repo.name.bright_magenta()
+                    );
+                }
+
+                app_state_changed = false;
+                repositories_changed = false;
+            } else {
+                repositories.list.push(SourcedRepository {
+                    content: repo,
+                    source: RepositorySource::File(file),
+                });
+
+                success!("Successfully added the repository!");
+
+                app_state_changed = false;
+                repositories_changed = true;
             }
-
-            repositories.list.push(SourcedRepository {
-                content: repo,
-                source: RepositorySource::File(file),
-            });
-
-            success!("Successfully added the repository!");
-
-            app_state_changed = false;
-            repositories_changed = true;
         }
 
         Action::ListRepos(ListReposArgs {}) => {

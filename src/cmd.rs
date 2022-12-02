@@ -50,6 +50,13 @@ pub struct PathArgs {}
 pub struct AddRepoArgs {
     #[clap(help = "Fetch repository from a local file")]
     pub file: PathBuf,
+
+    #[clap(
+        short,
+        long,
+        help = "Ignore if a repository with this name is already registered"
+    )]
+    pub ignore: bool,
 }
 
 #[derive(Args)]
