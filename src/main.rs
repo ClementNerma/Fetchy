@@ -156,17 +156,21 @@ async fn inner() -> Result<()> {
             let yellow_len = repositories.list.len().to_string().bright_yellow();
 
             for (i, sourced) in repositories.list.iter_mut().enumerate() {
-                info!(
-                    "==> Updating repository {} ({} / {})...",
-                    sourced.content.name.bright_magenta(),
-                    (i + 1).to_string().bright_yellow(),
-                    yellow_len
-                );
+                if !args.quiet {
+                    info!(
+                        "==> Updating repository {} ({} / {})...",
+                        sourced.content.name.bright_magenta(),
+                        (i + 1).to_string().bright_yellow(),
+                        yellow_len
+                    );
+                }
 
                 sourced.content = fetch_repository(&sourced.source).await?;
             }
 
-            success!("Successfully updated all repositories!");
+            if !args.quiet {
+                success!("Successfully updated all repositories!");
+            }
 
             app_state_changed = false;
             repositories_changed = true;
