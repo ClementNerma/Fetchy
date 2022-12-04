@@ -31,8 +31,8 @@ pub async fn fetch_latest_release_asset(
 
     let asset = filtered_assets.into_iter().next().with_context(|| {
         format!(
-            "No entry matched the release regex in repo {}/{}",
-            author, repo_name
+            "No entry matched the release regex ({}) in repo {}/{}.",
+            asset_pattern.source, author, repo_name
         )
     })?;
 
