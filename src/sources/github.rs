@@ -11,6 +11,10 @@ pub async fn fetch_latest_release_asset(
 ) -> Result<Asset> {
     let release = fetch_latest_release(author, repo_name).await?;
 
+    if release.assets.is_empty() {
+        bail!("No asset found in latest release in repo {author}/{repo_name}");
+    }
+
     let (filtered_assets, non_matching_assets) = release
         .assets
         .into_iter()
