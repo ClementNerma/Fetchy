@@ -216,7 +216,9 @@ async fn inner() -> Result<()> {
                 );
             }
 
-            success!("All provided packages are already installed!");
+            if !args.quiet {
+                success!("All provided packages are already installed!");
+            }
 
             app_state_changed = false;
             repositories_changed = false;
