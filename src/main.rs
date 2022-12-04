@@ -194,6 +194,34 @@ async fn inner() -> Result<()> {
             repositories_changed = false;
         }
 
+        Action::CheckInstalled(CheckInstalledArgs { names }) => {
+            let missing = names
+                .iter()
+                .filter(|name| {
+                    !app_state
+                        .installed
+                        .iter()
+                        .any(|installed| &&installed.pkg_name == name)
+                })
+                .collect::<Vec<_>>();
+
+            if !missing.is_empty() {
+                bail!(
+                    "Detected the following missing packages:\n{}",
+                    missing
+                        .iter()
+                        .map(|name| format!("* {}", name.bright_yellow()))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                );
+            }
+
+            success!("All provided packages are already installed!");
+
+            app_state_changed = false;
+            repositories_changed = false;
+        }
+
         Action::Install(InstallArgs { names }) => {
             if repositories.list.is_empty() {
                 bail!("No repository found, please register one.");

@@ -37,6 +37,9 @@ pub enum Action {
     #[clap(about = "Require some packages to be installed")]
     Require(RequireArgs),
 
+    #[clap(about = "Check if a list of packages is installed")]
+    CheckInstalled(CheckInstalledArgs),
+
     #[clap(about = "Update installed packages")]
     Update(UpdateArgs),
     // #[clap(about = "Uninstall packages")]
@@ -78,6 +81,12 @@ pub struct RequireArgs {
 
     #[clap(short, long, help = "Ask for confirmation before installing")]
     pub confirm: bool,
+}
+
+#[derive(Args)]
+pub struct CheckInstalledArgs {
+    #[clap(help = "Name of the package(s) to check")]
+    pub names: Vec<String>,
 }
 
 #[derive(Args)]
