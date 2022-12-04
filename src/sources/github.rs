@@ -11,11 +11,10 @@ pub async fn fetch_latest_release_asset(
 ) -> Result<Asset> {
     let release = fetch_latest_release(author, repo_name).await?;
 
-    let filtered_assets = release
+    let (filtered_assets, non_matching_assets) = release
         .assets
         .into_iter()
-        .filter(|asset| asset_pattern.regex.is_match(&asset.name))
-        .collect::<Vec<_>>();
+        .partition::<Vec<_>, _>(|asset| asset_pattern.regex.is_match(&asset.name));
 
     if filtered_assets.len() > 1 {
         bail!(
@@ -31,8 +30,9 @@ pub async fn fetch_latest_release_asset(
 
     let asset = filtered_assets.into_iter().next().with_context(|| {
         format!(
-            "No entry matched the release regex ({}) in repo {}/{}.",
-            asset_pattern.source, author, repo_name
+            "No entry matched the release regex ({}) in repo {}/{}.\nFound non-matching assets:\n\n{}",
+            asset_pattern.source, author, repo_name,
+            non_matching_assets.iter().map(|asset| format!("* {}", asset.name)).collect::<Vec<_>>().join("\n")
         )
     })?;
 
