@@ -308,11 +308,17 @@ pub async fn fetch_package(
                 )
             })?;
 
-        bin_path
+        let mut new_perms = file
+            .current_path
             .metadata()
             .context("Failed to get file's metadata")?
-            .permissions()
-            .set_mode(0o744);
+            .permissions();
+
+        new_perms.set_mode(0o744);
+
+        fs::set_permissions(&file.current_path, new_perms)
+            .await
+            .context("Failed to write file's new metadata (updated permissions)")?;
     }
 
     Ok(InstalledPackage {
