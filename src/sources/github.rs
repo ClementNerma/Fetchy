@@ -34,8 +34,8 @@ pub async fn fetch_latest_release_asset(
 
     let asset = filtered_assets.into_iter().next().with_context(|| {
         format!(
-            "No entry matched the release regex ({}) in repo {}/{}.\nFound non-matching assets:\n\n{}",
-            asset_pattern.source, author, repo_name,
+            "No entry matched the release regex ({}) in repo {author}/{repo_name}.\nFound non-matching assets:\n\n{}",
+            asset_pattern.source,
             non_matching_assets.iter().map(|asset| format!("* {}", asset.name)).collect::<Vec<_>>().join("\n")
         )
     })?;
