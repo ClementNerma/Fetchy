@@ -39,11 +39,13 @@ pub async fn fetch_package_asset_infos(pkg: &Package) -> Result<FetchedPackageAs
         url,
         filename,
         release_title,
+        tag_name,
     } = match &pkg.download.source {
         DownloadSource::Direct { url } => Asset {
             url: url.clone(),
             filename: None,
             release_title: None,
+            tag_name: None,
         },
         DownloadSource::GitHub {
             author,
@@ -60,6 +62,9 @@ pub async fn fetch_package_asset_infos(pkg: &Package) -> Result<FetchedPackageAs
         VersionExtractionSource::DownloadedFileName => filename
             .as_ref()
             .context("Cannot match on non-existent filename")?,
+        VersionExtractionSource::TagName => tag_name
+            .as_ref()
+            .context("Cannot match on non-existent tag name")?,
     };
 
     let version = pkg
@@ -347,6 +352,7 @@ pub struct Asset {
     pub url: String,
     pub filename: Option<String>,
     pub release_title: Option<String>,
+    pub tag_name: Option<String>,
 }
 
 struct FileToCopy {

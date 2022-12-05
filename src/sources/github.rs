@@ -44,6 +44,7 @@ pub async fn fetch_latest_release_asset(
         url: asset.browser_download_url,
         filename: Some(asset.name),
         release_title: release.name,
+        tag_name: Some(release.tag_name),
     })
 }
 
@@ -78,6 +79,7 @@ async fn fetch_latest_release(author: &str, repo_name: &str) -> Result<GitHubRel
 struct GitHubRelease {
     name: Option<String>,
     assets: Vec<GitHubReleaseAsset>,
+    tag_name: String,
 }
 
 #[derive(Serialize, Deserialize)]

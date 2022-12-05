@@ -68,6 +68,7 @@ pub enum VersionExtractionSource {
     Url,
     ReleaseTitle,
     DownloadedFileName,
+    TagName,
 }
 
 #[derive(Serialize, Deserialize)]
