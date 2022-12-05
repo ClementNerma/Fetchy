@@ -308,6 +308,7 @@ pub async fn fetch_package(
                 )
             })?;
 
+        // TODO: fix this as this doesn't work :(
         fs::set_permissions(&file.current_path, std::fs::Permissions::from_mode(0o744))
             .await
             .context("Failed to write file's new metadata (updated permissions)")?;
