@@ -286,7 +286,7 @@ async fn inner() -> Result<()> {
 
                 if asset_infos.version == installed.version {
                     info!(
-                        "  |> Package is already up-to-date (version {}), skipping.",
+                        " |> Package is already up-to-date (version {}), skipping.",
                         installed.version.bright_yellow()
                     );
                     continue;
@@ -304,10 +304,12 @@ async fn inner() -> Result<()> {
                 .await?;
 
                 info!(
-                    "  |> Updated package from version {} to {}.",
+                    " |> Updated package from version {} to {}.",
                     prev_version.bright_yellow(),
                     installed.version.bright_yellow(),
                 );
+
+                println!();
             }
 
             // success!("Successfully updated {yellow_len} package(s)!");
