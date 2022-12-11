@@ -35,7 +35,7 @@ impl<'de> Visitor<'de> for PomskyRegexVisitor {
     where
         E: Error,
     {
-        let (expr, warnings) = pomsky::Expr::parse(&str)
+        let (expr, warnings) = pomsky::Expr::parse(str)
             .map_err(|err| E::custom(format!("Invalid regex provided ({str}): {err}")))?;
 
         for warning in warnings {

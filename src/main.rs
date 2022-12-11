@@ -351,14 +351,13 @@ fn find_matching_packages<'a>(
     repos
         .list
         .iter()
-        .map(|repo| {
+        .flat_map(|repo| {
             repo.content
                 .packages
                 .iter()
                 .filter(|package| package.name == name)
                 .map(move |package| (repo, package))
         })
-        .flatten()
         .collect()
 }
 
@@ -413,7 +412,7 @@ async fn install_packages(
             !ignore_installed || !app_state.installed.iter().any(|pkg| &&pkg.pkg_name == name)
         })
         .map(|name| {
-            let candidates = find_matching_packages(&repositories, name);
+            let candidates = find_matching_packages(repositories, name);
 
             if candidates.len() > 1 {
                 bail!(
@@ -477,12 +476,12 @@ async fn install_packages(
             yellow_len,
         );
 
-        let asset_infos = fetch_package_asset_infos(&pkg).await?;
+        let asset_infos = fetch_package_asset_infos(pkg).await?;
         let installed = fetch_package(
             pkg,
             &repo.content.name,
             asset_infos,
-            &bin_dir,
+            bin_dir,
             &progress_bar_tracker(),
         )
         .await?;

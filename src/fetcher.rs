@@ -51,7 +51,7 @@ pub async fn fetch_package_asset_infos(pkg: &Package) -> Result<FetchedPackageAs
             author,
             repo_name,
             asset_pattern,
-        } => github::fetch_latest_release_asset(author, repo_name, &asset_pattern).await?,
+        } => github::fetch_latest_release_asset(author, repo_name, asset_pattern).await?,
     };
 
     let version_extraction_string = match pkg.download.version_extraction.source {
@@ -72,7 +72,7 @@ pub async fn fetch_package_asset_infos(pkg: &Package) -> Result<FetchedPackageAs
         .version_extraction
         .regex
         .regex
-        .captures(&version_extraction_string)
+        .captures(version_extraction_string)
         .with_context(|| {
             format!("Version extraction regex ({}) did not match on string: {version_extraction_string}", pkg.download.version_extraction.regex.source)
         })?
@@ -188,7 +188,7 @@ pub async fn fetch_package(
                     let Some(path_str) = path.to_str() else { continue };
 
                     for (i, file) in files.iter().enumerate() {
-                        if !file.relative_path.regex.is_match(&path_str) {
+                        if !file.relative_path.regex.is_match(path_str) {
                             continue;
                         }
 
