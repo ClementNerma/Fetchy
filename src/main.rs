@@ -286,7 +286,7 @@ async fn inner() -> Result<()> {
 
                 if asset_infos.version == installed.version {
                     info!(
-                        " |> Package is already up-to-date (version {}), skipping.",
+                        " |> Package is already up-to-date (version {}), skipping.\n",
                         installed.version.bright_yellow()
                     );
                     continue;
