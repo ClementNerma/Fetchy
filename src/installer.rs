@@ -286,7 +286,8 @@ pub async fn install_packages(
         return Ok(0);
     }
 
-    let yellow_len = to_install.len().to_string().bright_yellow();
+    let total = to_install.len();
+    let yellow_len = total.to_string().bright_yellow();
 
     if confirm {
         let prompt = format!(
@@ -309,7 +310,7 @@ pub async fn install_packages(
         }
     }
 
-    for (i, (repo, pkg)) in to_install.iter().enumerate() {
+    for (i, (repo, pkg)) in to_install.into_iter().enumerate() {
         info!(
             "==> Installing package {} from repo {} ({} / {})...",
             pkg.name.bright_yellow(),
@@ -319,6 +320,7 @@ pub async fn install_packages(
         );
 
         let asset_infos = fetch_package_asset_infos(pkg).await?;
+
         let installed = fetch_package(
             pkg,
             &repo.content.name,
@@ -351,5 +353,97 @@ pub async fn install_packages(
         println!();
     }
 
-    Ok(to_install.len())
+    Ok(total)
+}
+
+pub async fn update_packages(
+    app_state: &mut AppState,
+    repositories: &Repositories,
+    bin_dir: &Path,
+    names: &[String],
+) -> Result<()> {
+    let to_update = app_state
+        .installed
+        .iter_mut()
+        .filter(|package| {
+            if names.is_empty() {
+                true
+            } else {
+                names.contains(&package.pkg_name)
+            }
+        })
+        .collect::<Vec<_>>();
+
+    for name in names {
+        if !to_update.iter().any(|package| &package.pkg_name == name) {
+            bail!("Package '{name}' was not found");
+        }
+    }
+
+    let yellow_len = to_update.len().to_string().bright_yellow();
+
+    for (i, installed) in to_update.into_iter().enumerate() {
+        info!(
+            "==> Updating package {} [from repo {}] ({} / {})...",
+            installed.pkg_name.bright_yellow(),
+            installed.repo_name.bright_magenta(),
+            (i + 1).to_string().bright_yellow(),
+            yellow_len,
+        );
+
+        let repo = repositories
+            .list
+            .iter()
+            .find(|repo| repo.content.name == installed.repo_name)
+            .with_context(|| {
+                format!(
+                    "Package {} comes from unregistered repository {}, cannot update.",
+                    installed.pkg_name, installed.repo_name
+                )
+            })?;
+
+        let pkg = repo
+            .content
+            .packages
+            .iter()
+            .find(|candidate| candidate.name == installed.pkg_name)
+            .with_context(|| {
+                format!(
+                    "Package {} was not found in repository {}",
+                    installed.pkg_name.bright_yellow(),
+                    installed.repo_name.bright_magenta()
+                )
+            })?;
+
+        let asset_infos = fetch_package_asset_infos(pkg).await?;
+
+        if asset_infos.version == installed.version {
+            info!(
+                " |> Package is already up-to-date (version {}), skipping.\n",
+                installed.version.bright_yellow()
+            );
+            continue;
+        }
+
+        let prev_version = installed.version.clone();
+
+        *installed = fetch_package(
+            pkg,
+            &repo.content.name,
+            asset_infos,
+            &bin_dir,
+            &progress_bar_tracker(),
+        )
+        .await?;
+
+        info!(
+            " |> Updated package from version {} to {}.",
+            prev_version.bright_yellow(),
+            installed.version.bright_yellow(),
+        );
+
+        println!();
+    }
+
+    Ok(())
 }

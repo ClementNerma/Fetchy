@@ -10,12 +10,11 @@ use cmd::*;
 use colored::Colorize;
 use fetcher::{fetch_repository, FetchProgressTracking};
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
-use installer::InstallPackageOptions;
+use installer::{update_packages, InstallPackageOptions};
 use logging::PRINT_DEBUG_MESSAGES;
 use repository::Package;
 use tokio::fs;
 
-use crate::fetcher::{fetch_package, fetch_package_asset_infos};
 use crate::installer::install_packages;
 
 mod app_data;
@@ -234,90 +233,7 @@ async fn inner() -> Result<()> {
         }
 
         Action::Update(UpdateArgs { names }) => {
-            let to_update = app_state
-                .installed
-                .iter_mut()
-                .filter(|package| {
-                    if names.is_empty() {
-                        true
-                    } else {
-                        names.contains(&package.pkg_name)
-                    }
-                })
-                .collect::<Vec<_>>();
-
-            for name in names {
-                if !to_update.iter().any(|package| package.pkg_name == name) {
-                    bail!("Package '{name}' was not found");
-                }
-            }
-
-            let yellow_len = to_update.len().to_string().bright_yellow();
-
-            for (i, installed) in to_update.into_iter().enumerate() {
-                info!(
-                    "==> Updating package {} [from repo {}] ({} / {})...",
-                    installed.pkg_name.bright_yellow(),
-                    installed.repo_name.bright_magenta(),
-                    (i + 1).to_string().bright_yellow(),
-                    yellow_len,
-                );
-
-                let repo = repositories
-                    .list
-                    .iter()
-                    .find(|repo| repo.content.name == installed.repo_name)
-                    .with_context(|| {
-                        format!(
-                            "Package {} comes from unregistered repository {}, cannot update.",
-                            installed.pkg_name, installed.repo_name
-                        )
-                    })?;
-
-                let pkg = repo
-                    .content
-                    .packages
-                    .iter()
-                    .find(|candidate| candidate.name == installed.pkg_name)
-                    .with_context(|| {
-                        format!(
-                            "Package {} was not found in repository {}",
-                            installed.pkg_name.bright_yellow(),
-                            installed.repo_name.bright_magenta()
-                        )
-                    })?;
-
-                let asset_infos = fetch_package_asset_infos(pkg).await?;
-
-                if asset_infos.version == installed.version {
-                    info!(
-                        " |> Package is already up-to-date (version {}), skipping.\n",
-                        installed.version.bright_yellow()
-                    );
-                    continue;
-                }
-
-                let prev_version = installed.version.clone();
-
-                *installed = fetch_package(
-                    pkg,
-                    &repo.content.name,
-                    asset_infos,
-                    &bin_dir,
-                    &progress_bar_tracker(),
-                )
-                .await?;
-
-                info!(
-                    " |> Updated package from version {} to {}.",
-                    prev_version.bright_yellow(),
-                    installed.version.bright_yellow(),
-                );
-
-                println!();
-            }
-
-            // success!("Successfully updated {yellow_len} package(s)!");
+            update_packages(&mut app_state, &repositories, &bin_dir, &names).await?;
 
             save_app_state(&state_file_path, &app_state).await?;
         }
