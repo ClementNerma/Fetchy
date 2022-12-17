@@ -310,7 +310,7 @@ async fn inner() -> Result<()> {
                     continue;
                 }
 
-                let prev_version = asset_infos.version.clone();
+                let prev_version = installed.version.clone();
 
                 *installed = fetch_package(
                     pkg,
