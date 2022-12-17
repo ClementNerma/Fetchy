@@ -87,9 +87,6 @@ async fn inner() -> Result<()> {
         Repositories::default()
     };
 
-    let app_state_changed;
-    let repositories_changed;
-
     match args.action {
         Action::Path(PathArgs {}) => {
             print!(
@@ -98,9 +95,6 @@ async fn inner() -> Result<()> {
                     .to_str()
                     .context("Path to the binaries directory contains invalid UTF-8 characters")?
             );
-
-            app_state_changed = false;
-            repositories_changed = false;
         }
 
         Action::AddRepo(AddRepoArgs { file, ignore }) => {
@@ -118,9 +112,6 @@ async fn inner() -> Result<()> {
                         repo.name.bright_magenta()
                     );
                 }
-
-                app_state_changed = false;
-                repositories_changed = false;
             } else {
                 repositories.list.push(SourcedRepository {
                     content: repo,
@@ -129,8 +120,7 @@ async fn inner() -> Result<()> {
 
                 success!("Successfully added the repository!");
 
-                app_state_changed = false;
-                repositories_changed = true;
+                save_repositories(&repositories_file_path, &repositories).await?;
             }
         }
 
@@ -147,9 +137,6 @@ async fn inner() -> Result<()> {
                     sourced.content.name.bright_magenta()
                 );
             }
-
-            app_state_changed = false;
-            repositories_changed = false;
         }
 
         Action::UpdateRepos(UpdateReposArgs {}) => {
@@ -172,8 +159,7 @@ async fn inner() -> Result<()> {
                 success!("Successfully updated all repositories!");
             }
 
-            app_state_changed = false;
-            repositories_changed = true;
+            save_repositories(&repositories_file_path, &repositories).await?;
         }
 
         Action::Require(RequireArgs { names, confirm }) => {
@@ -190,8 +176,9 @@ async fn inner() -> Result<()> {
             )
             .await?;
 
-            app_state_changed = count > 0;
-            repositories_changed = false;
+            if count > 0 {
+                save_app_state(&state_file_path, &app_state).await?;
+            }
         }
 
         Action::CheckInstalled(CheckInstalledArgs { names }) => {
@@ -219,9 +206,6 @@ async fn inner() -> Result<()> {
             if !args.quiet {
                 success!("All provided packages are already installed!");
             }
-
-            app_state_changed = false;
-            repositories_changed = false;
         }
 
         Action::Install(InstallArgs { names }) => {
@@ -242,8 +226,9 @@ async fn inner() -> Result<()> {
             )
             .await?;
 
-            app_state_changed = count > 0;
-            repositories_changed = false;
+            if count > 0 {
+                save_app_state(&state_file_path, &app_state).await?;
+            }
         }
 
         Action::Update(UpdateArgs { names }) => {
@@ -332,31 +317,8 @@ async fn inner() -> Result<()> {
 
             // success!("Successfully updated {yellow_len} package(s)!");
 
-            app_state_changed = true;
-            repositories_changed = false;
+            save_app_state(&state_file_path, &app_state).await?;
         }
-    }
-
-    if app_state_changed {
-        debug!("Application's state changed, flushing to disk.");
-
-        let app_data_str =
-            serde_json::to_string(&app_state).context("Failed to serialize application's data")?;
-
-        fs::write(&state_file_path, &app_data_str)
-            .await
-            .context("Failed to write application's data to disk")?;
-    }
-
-    if repositories_changed {
-        debug!("Repositories changed, flushing to disk.");
-
-        let repositories_str =
-            serde_json::to_string(&repositories).context("Failed to serialize the repositories")?;
-
-        fs::write(&repositories_file_path, &repositories_str)
-            .await
-            .context("Failed to write the repositories to disk")?;
     }
 
     Ok(())
@@ -528,4 +490,29 @@ async fn install_packages(
     }
 
     Ok(to_install.len())
+}
+
+async fn save_app_state(state_file_path: &Path, app_state: &AppState) -> Result<()> {
+    debug!("Application's state changed, flushing to disk.");
+
+    let app_data_str =
+        serde_json::to_string(app_state).context("Failed to serialize application's data")?;
+
+    fs::write(&state_file_path, &app_data_str)
+        .await
+        .context("Failed to write application's data to disk")
+}
+
+async fn save_repositories(
+    repositories_file_path: &Path,
+    repositories: &Repositories,
+) -> Result<()> {
+    debug!("Repositories changed, flushing to disk.");
+
+    let repositories_str =
+        serde_json::to_string(repositories).context("Failed to serialize the repositories")?;
+
+    fs::write(&repositories_file_path, &repositories_str)
+        .await
+        .context("Failed to write the repositories to disk")
 }
