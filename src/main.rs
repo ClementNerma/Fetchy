@@ -8,14 +8,15 @@ use app_data::{AppState, Repositories, RepositorySource, SourcedRepository};
 use clap::Parser;
 use cmd::*;
 use colored::Colorize;
-use dialoguer::Select;
 use fetcher::{fetch_repository, FetchProgressTracking};
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
+use installer::InstallPackageOptions;
 use logging::PRINT_DEBUG_MESSAGES;
 use repository::Package;
 use tokio::fs;
 
 use crate::fetcher::{fetch_package, fetch_package_asset_infos};
+use crate::installer::install_packages;
 
 mod app_data;
 mod cmd;
@@ -368,129 +369,6 @@ fn progress_bar_tracker() -> FetchProgressTracking {
         }),
         on_finish: Box::new(|| pb.finish()),
     }
-}
-
-struct InstallPackageOptions {
-    confirm: bool,
-    ignore_installed: bool,
-    quiet: bool,
-}
-
-async fn install_packages(
-    bin_dir: &Path,
-    app_state: &mut AppState,
-    repositories: &Repositories,
-    names: &[String],
-    InstallPackageOptions {
-        confirm,
-        ignore_installed,
-        quiet,
-    }: InstallPackageOptions,
-) -> Result<usize> {
-    let to_install = names
-        .iter()
-        .filter(|name| {
-            !ignore_installed || !app_state.installed.iter().any(|pkg| &&pkg.pkg_name == name)
-        })
-        .map(|name| {
-            let candidates = find_matching_packages(repositories, name);
-
-            if candidates.len() > 1 {
-                bail!(
-                    "Multiple candidates found for this package:\n{}",
-                    candidates
-                        .iter()
-                        .map(|(repo, pkg)| format!(
-                            "* {} (from repository {})",
-                            pkg.name.bright_yellow(),
-                            repo.content.name.bright_magenta()
-                        ))
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                );
-            }
-
-            candidates
-                .into_iter()
-                .next()
-                .with_context(|| format!("Package {} was not found", name.bright_yellow()))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-
-    if to_install.is_empty() {
-        if !quiet {
-            success!("Nothing to install!");
-        }
-
-        return Ok(0);
-    }
-
-    let yellow_len = to_install.len().to_string().bright_yellow();
-
-    if confirm {
-        let prompt = format!(
-            "Going to install {yellow_len} package(s):\n{}\n\nDo you want to continue?",
-            to_install
-                .iter()
-                .map(|(_, pkg)| format!("* {}", pkg.name.bright_yellow()))
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-        .bright_blue();
-
-        let choice = Select::new()
-            .with_prompt(prompt.to_string())
-            .items(&["Continue", "Abort"])
-            .interact()?;
-
-        if choice != 0 {
-            bail!("Aborted by user.");
-        }
-    }
-
-    for (i, (repo, pkg)) in to_install.iter().enumerate() {
-        info!(
-            "==> Installing package {} from repo {} ({} / {})...",
-            pkg.name.bright_yellow(),
-            repo.content.name.bright_magenta(),
-            (i + 1).to_string().bright_yellow(),
-            yellow_len,
-        );
-
-        let asset_infos = fetch_package_asset_infos(pkg).await?;
-        let installed = fetch_package(
-            pkg,
-            &repo.content.name,
-            asset_infos,
-            bin_dir,
-            &progress_bar_tracker(),
-        )
-        .await?;
-
-        info!(
-            "  |> Installed package version {} - deployed {} {}",
-            installed.version.bright_yellow(),
-            if installed.binaries.len() > 1 {
-                "binaries"
-            } else {
-                "binary"
-            },
-            installed.binaries.join(", ").bright_green().underline()
-        );
-
-        let existing_index = app_state.installed.iter().position(|installed| {
-            installed.repo_name == repo.content.name && installed.pkg_name == pkg.name
-        });
-
-        match existing_index {
-            Some(index) => app_state.installed[index] = installed,
-            None => app_state.installed.push(installed),
-        }
-
-        println!();
-    }
-
-    Ok(to_install.len())
 }
 
 async fn save_app_state(state_file_path: &Path, app_state: &AppState) -> Result<()> {
