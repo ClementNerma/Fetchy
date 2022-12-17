@@ -8,10 +8,10 @@ pub struct Cmd {
     #[clap(subcommand)]
     pub action: Action,
 
-    #[clap(short, long, conflicts_with = "verbose")]
+    #[clap(short, long, global = true, conflicts_with = "verbose")]
     pub quiet: bool,
 
-    #[clap(short, long, conflicts_with = "quiet")]
+    #[clap(short, long, global = true, conflicts_with = "quiet")]
     pub verbose: bool,
 }
 
@@ -92,5 +92,5 @@ pub struct CheckInstalledArgs {
 #[derive(Args)]
 pub struct UpdateArgs {
     #[clap(help = "List of packages to update (all if none provided)")]
-    pub names: Vec<String>
+    pub names: Vec<String>,
 }
