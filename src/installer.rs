@@ -408,7 +408,7 @@ pub async fn update_packages(
             .iter()
             .find(|candidate| candidate.name == installed.pkg_name) else {
                 info!(
-                    " |> Package {} is installed {}",
+                    " |> Package {} is installed {}\n",
                     installed.pkg_name.bright_blue(),
                     "but does not seem to exist anymore in this repository".bright_yellow()
                 );
