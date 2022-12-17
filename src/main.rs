@@ -20,6 +20,7 @@ use crate::fetcher::{fetch_package, fetch_package_asset_infos};
 mod app_data;
 mod cmd;
 mod fetcher;
+mod installer;
 mod logging;
 mod pattern;
 mod repository;
