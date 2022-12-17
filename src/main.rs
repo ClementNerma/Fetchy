@@ -246,10 +246,28 @@ async fn inner() -> Result<()> {
             repositories_changed = false;
         }
 
-        Action::Update(UpdateArgs {}) => {
+        Action::Update(UpdateArgs { names }) => {
             let yellow_len = app_state.installed.len().to_string().bright_yellow();
 
-            for (i, installed) in app_state.installed.iter_mut().enumerate() {
+            let items = app_state
+                .installed
+                .iter_mut()
+                .filter(|package| {
+                    if names.is_empty() {
+                        true
+                    } else {
+                        names.contains(&package.pkg_name)
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            for name in names {
+                if !items.iter().any(|package| package.pkg_name == name) {
+                    bail!("Package '{name}' was not found");
+                }
+            }
+
+            for (i, installed) in items.into_iter().enumerate() {
                 info!(
                     "==> Updating package {} [from repo {}] ({} / {})...",
                     installed.pkg_name.bright_yellow(),

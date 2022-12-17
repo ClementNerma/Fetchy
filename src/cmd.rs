@@ -90,4 +90,7 @@ pub struct CheckInstalledArgs {
 }
 
 #[derive(Args)]
-pub struct UpdateArgs {}
+pub struct UpdateArgs {
+    #[clap(help = "List of packages to update (all if none provided)")]
+    pub names: Vec<String>
+}
