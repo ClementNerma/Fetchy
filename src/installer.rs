@@ -402,18 +402,18 @@ pub async fn update_packages(
                 )
             })?;
 
-        let pkg = repo
+        let Some(pkg) = repo
             .content
             .packages
             .iter()
-            .find(|candidate| candidate.name == installed.pkg_name)
-            .with_context(|| {
-                format!(
-                    "Package {} was not found in repository {}",
-                    installed.pkg_name.bright_yellow(),
-                    installed.repo_name.bright_magenta()
-                )
-            })?;
+            .find(|candidate| candidate.name == installed.pkg_name) else {
+                info!(
+                    " |> Package {} is installed {}",
+                    installed.pkg_name.bright_blue(),
+                    "but does not seem to exist anymore in this repository".bright_yellow()
+                );
+                continue;
+            };
 
         let asset_infos = fetch_package_asset_infos(pkg).await?;
 
