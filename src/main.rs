@@ -24,6 +24,7 @@ mod installer;
 mod logging;
 mod pattern;
 mod repository;
+mod selector;
 mod sources;
 
 #[tokio::main]
@@ -236,6 +237,29 @@ async fn inner() -> Result<()> {
             update_packages(&mut app_state, &repositories, &bin_dir, &names).await?;
 
             save_app_state(&state_file_path, &app_state).await?;
+        }
+
+        Action::Uninstall(UninstallArgs { name }) => {
+            let index = app_state
+                .installed
+                .iter()
+                .position(|package| package.pkg_name == name)
+                .with_context(|| format!("Package '{name}' is not currently installed."))?;
+
+            for file in &app_state.installed[index].binaries {
+                fs::remove_file(bin_dir.join(file))
+                    .await
+                    .with_context(|| format!("Failed to remove binary '{file}'"))?;
+            }
+
+            app_state.installed.remove(index);
+
+            save_app_state(&state_file_path, &app_state).await?;
+
+            success!(
+                "Successfully uninstalled package '{}'",
+                name.bright_yellow()
+            );
         }
     }
 

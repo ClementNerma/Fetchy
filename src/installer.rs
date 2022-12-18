@@ -23,6 +23,7 @@ use crate::{
     fetcher::{fetch_package, fetch_package_asset_infos},
     find_matching_packages, info, progress_bar_tracker,
     repository::{ArchiveFormat, FileFormat, Package},
+    selector::find_installed_packages,
     success,
 };
 
@@ -362,23 +363,7 @@ pub async fn update_packages(
     bin_dir: &Path,
     names: &[String],
 ) -> Result<()> {
-    let to_update = app_state
-        .installed
-        .iter_mut()
-        .filter(|package| {
-            if names.is_empty() {
-                true
-            } else {
-                names.contains(&package.pkg_name)
-            }
-        })
-        .collect::<Vec<_>>();
-
-    for name in names {
-        if !to_update.iter().any(|package| &package.pkg_name == name) {
-            bail!("Package '{name}' was not found");
-        }
-    }
+    let to_update = find_installed_packages(app_state, names)?;
 
     let yellow_len = to_update.len().to_string().bright_yellow();
 

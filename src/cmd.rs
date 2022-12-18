@@ -42,8 +42,9 @@ pub enum Action {
 
     #[clap(about = "Update installed packages")]
     Update(UpdateArgs),
-    // #[clap(about = "Uninstall packages")]
-    // Uninstall(UninstallArgs),
+
+    #[clap(about = "Uninstall packages")]
+    Uninstall(UninstallArgs),
 }
 
 #[derive(Args)]
@@ -93,4 +94,10 @@ pub struct CheckInstalledArgs {
 pub struct UpdateArgs {
     #[clap(help = "List of packages to update (all if none provided)")]
     pub names: Vec<String>,
+}
+
+#[derive(Args)]
+pub struct UninstallArgs {
+    #[clap(help = "Name of the package to uninstall")]
+    pub name: String,
 }
