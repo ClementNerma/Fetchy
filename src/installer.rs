@@ -128,7 +128,7 @@ pub async fn install_package(
                     .await
                     .context("Failed to open ZIP archive")?;
 
-                let entries = zip.entries();
+                let entries = zip.file().entries();
 
                 let mut out = Vec::with_capacity(files.len());
 
@@ -136,7 +136,9 @@ pub async fn install_package(
                     let results = entries
                         .iter()
                         .enumerate()
-                        .filter(|(_, entry)| file.relative_path.regex.is_match(entry.filename()))
+                        .filter(|(_, entry)| {
+                            file.relative_path.regex.is_match(entry.entry().filename())
+                        })
                         .collect::<Vec<_>>();
 
                     if results.is_empty() {
@@ -150,14 +152,14 @@ pub async fn install_package(
                             file.relative_path.source,
                             results
                                 .into_iter()
-                                .map(|(_, entry)| format!("* {}", entry.filename()))
+                                .map(|(_, entry)| format!("* {}", entry.entry().filename()))
                                 .collect::<Vec<_>>()
                                 .join("\n")
                         )
                     }
 
-                    let reader = zip
-                        .entry_reader(results[0].0)
+                    let mut reader = zip
+                        .entry(results[0].0)
                         .await
                         .context("Failed to read entry from ZIP archive")?;
 
@@ -167,10 +169,11 @@ pub async fn install_package(
                         .await
                         .context("Failed to open writable file for extraction")?;
 
-                    reader
-                        .copy_to_end_crc(&mut write, 64 * 1024)
+                    io::copy(&mut reader, &mut write)
                         .await
-                        .context("Failed to extract file from ZIP archive")?;
+                        .context("Failed to extract file from ZIP to disk")?;
+
+                    // TODO: CRC32 checking
 
                     out.push(FileToCopy {
                         // original_path: Some(entry.filename().to_owned()),

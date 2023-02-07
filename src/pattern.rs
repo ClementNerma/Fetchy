@@ -1,11 +1,11 @@
-use pomsky::options::CompileOptions;
+use pomsky::{diagnose::Severity, options::CompileOptions};
 use regex::Regex;
 use serde::{
     de::{Error, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
 };
 
-use crate::warn;
+use crate::{error, warn};
 
 pub struct Pattern {
     pub source: String,
@@ -35,16 +35,25 @@ impl<'de> Visitor<'de> for PomskyRegexVisitor {
     where
         E: Error,
     {
-        let (expr, warnings) = pomsky::Expr::parse(str)
-            .map_err(|err| E::custom(format!("Invalid regex provided ({str}): {err}")))?;
+        let (expr, warnings) = pomsky::Expr::parse(str);
 
-        for warning in warnings {
-            warn!("Warning when compiling regex ({str}): {warning}");
+        for warn in warnings {
+            match warn.severity {
+                Severity::Error => error!("Failed to parse Pomsky regex: {}", warn.msg),
+                Severity::Warning => warn!("Pomsky emitted a warning: {}", warn.msg),
+            }
         }
 
+        let expr = expr.ok_or_else(|| E::custom("Regex could not be parsed"))?;
+
         let compiled = expr
-            .compile(CompileOptions::default())
-            .map_err(|err| E::custom(format!("Failed to compile provided regex ({str}): {err}")))?;
+            .compile(str, CompileOptions::default())
+            .map_err(|err| {
+                E::custom(format!(
+                    "Failed to compile provided regex ({str}): {}",
+                    err.msg
+                ))
+            })?;
 
         let regex = Regex::new(&compiled).map_err(|err| {
             E::custom(format!(
