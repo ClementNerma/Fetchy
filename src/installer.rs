@@ -22,7 +22,7 @@ use crate::{
     app_data::{AppState, InstalledPackage, Repositories},
     fetcher::{fetch_package, fetch_package_asset_infos},
     find_matching_packages, info, progress_bar_tracker,
-    repository::{ArchiveFormat, FileFormat, Package},
+    repository::{ArchiveFormat, AssetFileType, FileFormat, Package},
     selector::find_installed_packages,
     success,
 };
@@ -32,6 +32,7 @@ pub async fn install_package(
     dl_file_path: PathBuf,
     tmp_dir: TempDir,
     bin_dir: &Path,
+    config_dir: &Path,
     repo_name: &str,
     version: String,
     on_message: &Box<dyn Fn(&str)>,
@@ -106,10 +107,10 @@ pub async fn install_package(
                             .await
                             .context("Failed to extract file from tarball archive")?;
 
-                        out.push(FileToCopy {
+                        out.push(ItemToCopy {
                             // original_path: Some(path_str.to_owned()),
-                            current_path: extraction_path,
-                            rename_to: file.rename_to.clone(),
+                            extracted_path: extraction_path,
+                            file_type: file.file_type.clone(),
                         });
 
                         treated[i] = Some(path_str.to_owned());
@@ -179,10 +180,10 @@ pub async fn install_package(
 
                     // TODO: CRC32 checking
 
-                    out.push(FileToCopy {
+                    out.push(ItemToCopy {
                         // original_path: Some(entry.filename().to_owned()),
-                        current_path: extraction_path,
-                        rename_to: file.rename_to.clone(),
+                        extracted_path: extraction_path,
+                        file_type: file.file_type.clone(),
                     });
                 }
 
@@ -193,30 +194,48 @@ pub async fn install_package(
         FileFormat::Binary {
             filename: out_filename,
         } => {
-            vec![FileToCopy {
+            vec![ItemToCopy {
                 // original_path: filename.clone(),
-                current_path: dl_file_path,
-                rename_to: out_filename.clone(),
+                extracted_path: dl_file_path,
+                file_type: AssetFileType::Binary {
+                    rename_to: out_filename.clone(),
+                },
             }]
         }
     };
 
     for file in &files_to_copy {
-        on_message(&format!("Copying binary: {}...", file.rename_to));
+        on_message(&match &file.file_type {
+            AssetFileType::Binary { rename_to } => format!("Copying binary: {rename_to}..."),
+            AssetFileType::ConfigDir => format!("Copying configuration directory: {}...", pkg.name),
+            AssetFileType::ConfigSubDir { rename_as } => {
+                format!("Copying configuration sub-directory: {rename_as}...")
+            }
+        });
 
-        let bin_path = bin_dir.join(&file.rename_to);
+        let (out_path, is_dir) = match &file.file_type {
+            AssetFileType::Binary { rename_to } => (bin_dir.join(rename_to), false),
+            AssetFileType::ConfigDir => (config_dir.join(&pkg.name), true),
+            AssetFileType::ConfigSubDir { rename_as } => {
+                (config_dir.join(&pkg.name).join(rename_as), true)
+            }
+        };
 
-        fs::copy(&file.current_path, &bin_path)
-            .await
-            .with_context(|| {
-                format!(
-                    "Failed to copy binary '{}' to the binaries directory",
-                    file.rename_to
-                )
-            })?;
+        if !is_dir {
+            fs::copy(&file.extracted_path, &out_path)
+                .await
+                .with_context(|| {
+                    format!(
+                        "Failed to copy file '{}' to the binaries directory",
+                        out_path.file_name().unwrap().to_string_lossy()
+                    )
+                })?;
+        } else {
+            todo!()
+        }
 
         // TODO: fix this as this doesn't work :(
-        fs::set_permissions(&file.current_path, std::fs::Permissions::from_mode(0o744))
+        fs::set_permissions(&file.extracted_path, std::fs::Permissions::from_mode(0o744))
             .await
             .context("Failed to write file's new metadata (updated permissions)")?;
     }
@@ -228,15 +247,18 @@ pub async fn install_package(
         at: SystemTime::now(),
         binaries: files_to_copy
             .iter()
-            .map(|file| file.rename_to.clone())
+            .filter_map(|file| match &file.file_type {
+                AssetFileType::Binary { rename_to } => Some(rename_to.clone()),
+                AssetFileType::ConfigDir | AssetFileType::ConfigSubDir { rename_as: _ } => None,
+            })
             .collect(),
     })
 }
 
-struct FileToCopy {
+struct ItemToCopy {
     // original_path: Option<String>,
-    current_path: PathBuf,
-    rename_to: String,
+    extracted_path: PathBuf,
+    file_type: AssetFileType,
 }
 
 pub struct InstallPackageOptions {
@@ -247,6 +269,7 @@ pub struct InstallPackageOptions {
 
 pub async fn install_packages(
     bin_dir: &Path,
+    config_dir: &Path,
     app_state: &mut AppState,
     repositories: &Repositories,
     names: &[String],
@@ -334,6 +357,7 @@ pub async fn install_packages(
             &repo.content.name,
             asset_infos,
             bin_dir,
+            config_dir,
             &progress_bar_tracker(),
         )
         .await?;
@@ -368,6 +392,7 @@ pub async fn update_packages(
     app_state: &mut AppState,
     repositories: &Repositories,
     bin_dir: &Path,
+    config_dir: &Path,
     names: &[String],
 ) -> Result<()> {
     let mut to_update = find_installed_packages(app_state, names)?;
@@ -424,7 +449,8 @@ pub async fn update_packages(
             pkg,
             &repo.content.name,
             asset_infos,
-            &bin_dir,
+            bin_dir,
+            config_dir,
             &progress_bar_tracker(),
         )
         .await?;

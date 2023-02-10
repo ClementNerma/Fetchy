@@ -85,6 +85,7 @@ pub async fn fetch_package(
     repo_name: &str,
     FetchedPackageAssetInfos { url, version }: FetchedPackageAssetInfos,
     bin_dir: &Path,
+    config_dir: &Path,
     progress: &FetchProgressTracking,
 ) -> Result<InstalledPackage> {
     (progress.on_message)(&format!("Downloading asset from URL: {url}..."));
@@ -133,6 +134,7 @@ pub async fn fetch_package(
         dl_file_path,
         tmp_dir,
         bin_dir,
+        config_dir,
         repo_name,
         version,
         &progress.on_message,

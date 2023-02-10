@@ -57,6 +57,8 @@ async fn inner() -> Result<()> {
             .context("Failed to create the application's data directory")?;
     }
 
+    let config_dir = dirs::config_dir().context("Failed to get path to config directory")?;
+
     let bin_dir = app_data_dir.join("bin");
     let state_file_path = app_data_dir.join("state.json");
     let repositories_file_path = app_data_dir.join("repositories.json");
@@ -167,6 +169,7 @@ async fn inner() -> Result<()> {
         Action::Require(RequireArgs { names, confirm }) => {
             let count = install_packages(
                 &bin_dir,
+                &config_dir,
                 &mut app_state,
                 &repositories,
                 &names,
@@ -217,6 +220,7 @@ async fn inner() -> Result<()> {
 
             let count = install_packages(
                 &bin_dir,
+                &config_dir,
                 &mut app_state,
                 &repositories,
                 &names,
@@ -234,7 +238,7 @@ async fn inner() -> Result<()> {
         }
 
         Action::Update(UpdateArgs { names }) => {
-            update_packages(&mut app_state, &repositories, &bin_dir, &names).await?;
+            update_packages(&mut app_state, &repositories, &bin_dir, &config_dir, &names).await?;
 
             save_app_state(&state_file_path, &app_state).await?;
         }

@@ -75,7 +75,14 @@ pub enum VersionExtractionSource {
 #[derive(Serialize, Deserialize)]
 pub struct FileExtraction {
     pub relative_path: Pattern,
-    pub rename_to: String,
+    pub file_type: AssetFileType,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub enum AssetFileType {
+    Binary { rename_to: String },
+    ConfigDir,
+    ConfigSubDir { rename_as: String },
 }
 
 fn deserialize_name<'de, D: Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
