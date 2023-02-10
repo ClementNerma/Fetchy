@@ -6,7 +6,7 @@ use std::{
 };
 
 use anyhow::{bail, Context, Result};
-use async_compression::tokio::write::GzipDecoder;
+use async_compression::tokio::write::{GzipDecoder, XzDecoder};
 use async_zip::read::fs::ZipFileReader;
 use colored::Colorize;
 use dialoguer::Select;
@@ -38,7 +38,7 @@ pub async fn install_package(
 ) -> Result<InstalledPackage> {
     let files_to_copy = match &pkg.download.file_format {
         FileFormat::Archive { format, files } => match format {
-            ArchiveFormat::TarGz => {
+            ArchiveFormat::TarGz | ArchiveFormat::TarXz => {
                 on_message("Extracting GZip archive...");
 
                 let tar_file_path = tmp_dir.path().join("tarball.tmp");
@@ -47,15 +47,17 @@ pub async fn install_package(
                     .await
                     .context("Failed to create a temporary file for tarball extraction")?;
 
-                let mut decoder = GzipDecoder::new(&mut tar_file);
-
                 let mut dl_file = File::open(&dl_file_path)
                     .await
                     .context("Failed to open downloaded file")?;
 
-                io::copy(&mut dl_file, &mut decoder)
-                    .await
-                    .context("Failed to extract GZip archive")?;
+                let copy_task = if *format == ArchiveFormat::TarGz {
+                    io::copy(&mut dl_file, &mut GzipDecoder::new(&mut tar_file)).await
+                } else {
+                    io::copy(&mut dl_file, &mut XzDecoder::new(&mut tar_file)).await
+                };
+
+                copy_task.context("Failed to extract GZip archive")?;
 
                 on_message("Analyzing tarball archive...");
 

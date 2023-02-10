@@ -51,9 +51,10 @@ pub enum FileFormat {
     },
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
 pub enum ArchiveFormat {
     TarGz,
+    TarXz,
     Zip,
 }
 
