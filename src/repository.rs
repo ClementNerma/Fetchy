@@ -80,9 +80,9 @@ pub struct FileExtraction {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum AssetFileType {
-    Binary { rename_to: String },
+    Binary { copy_as: String },
     ConfigDir,
-    ConfigSubDir { rename_as: String },
+    ConfigSubDir { copy_as: String },
 }
 
 fn deserialize_name<'de, D: Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {

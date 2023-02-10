@@ -198,7 +198,7 @@ pub async fn install_package(
                 // original_path: filename.clone(),
                 extracted_path: dl_file_path,
                 file_type: AssetFileType::Binary {
-                    rename_to: out_filename.clone(),
+                    copy_as: out_filename.clone(),
                 },
             }]
         }
@@ -206,18 +206,18 @@ pub async fn install_package(
 
     for file in &files_to_copy {
         on_message(&match &file.file_type {
-            AssetFileType::Binary { rename_to } => format!("Copying binary: {rename_to}..."),
+            AssetFileType::Binary { copy_as } => format!("Copying binary: {copy_as}..."),
             AssetFileType::ConfigDir => format!("Copying configuration directory: {}...", pkg.name),
-            AssetFileType::ConfigSubDir { rename_as } => {
-                format!("Copying configuration sub-directory: {rename_as}...")
+            AssetFileType::ConfigSubDir { copy_as } => {
+                format!("Copying configuration sub-directory: {copy_as}...")
             }
         });
 
         let (out_path, is_dir) = match &file.file_type {
-            AssetFileType::Binary { rename_to } => (bin_dir.join(rename_to), false),
+            AssetFileType::Binary { copy_as } => (bin_dir.join(copy_as), false),
             AssetFileType::ConfigDir => (config_dir.join(&pkg.name), true),
-            AssetFileType::ConfigSubDir { rename_as } => {
-                (config_dir.join(&pkg.name).join(rename_as), true)
+            AssetFileType::ConfigSubDir { copy_as } => {
+                (config_dir.join(&pkg.name).join(copy_as), true)
             }
         };
 
@@ -248,8 +248,8 @@ pub async fn install_package(
         binaries: files_to_copy
             .iter()
             .filter_map(|file| match &file.file_type {
-                AssetFileType::Binary { rename_to } => Some(rename_to.clone()),
-                AssetFileType::ConfigDir | AssetFileType::ConfigSubDir { rename_as: _ } => None,
+                AssetFileType::Binary { copy_as } => Some(copy_as.clone()),
+                AssetFileType::ConfigDir | AssetFileType::ConfigSubDir { copy_as: _ } => None,
             })
             .collect(),
     })
