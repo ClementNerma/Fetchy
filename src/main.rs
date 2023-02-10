@@ -26,6 +26,7 @@ mod pattern;
 mod repository;
 mod selector;
 mod sources;
+mod utils;
 
 #[tokio::main]
 async fn main() {

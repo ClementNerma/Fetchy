@@ -38,6 +38,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-recursion"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b015a331cc64ebd1774ba119538573603427eaace0a1950c423ab971f903796"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "async_zip"
 version = "0.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -266,10 +277,11 @@ dependencies = [
 
 [[package]]
 name = "fetchy"
-version = "0.1.16"
+version = "0.1.17"
 dependencies = [
  "anyhow",
  "async-compression",
+ "async-recursion",
  "async_zip",
  "clap",
  "colored",

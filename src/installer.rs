@@ -1,5 +1,4 @@
 use std::{
-    borrow::Cow,
     os::unix::prelude::PermissionsExt,
     path::{Path, PathBuf},
     time::SystemTime,
@@ -10,7 +9,6 @@ use async_compression::tokio::write::{GzipDecoder, XzDecoder};
 use async_zip::read::fs::ZipFileReader;
 use colored::Colorize;
 use dialoguer::Select;
-use futures_util::StreamExt;
 use tempfile::TempDir;
 use tokio::{
     fs::{self, File},
@@ -25,6 +23,7 @@ use crate::{
     repository::{ArchiveFormat, AssetFileType, FileFormat, Package},
     selector::find_installed_packages,
     success,
+    utils::{copy_dir, read_dir_tree},
 };
 
 pub async fn install_package(
@@ -37,7 +36,7 @@ pub async fn install_package(
     version: String,
     on_message: &Box<dyn Fn(&str)>,
 ) -> Result<InstalledPackage> {
-    let files_to_copy = match &pkg.download.file_format {
+    let items_to_copy = match &pkg.download.file_format {
         FileFormat::Archive { format, files } => match format {
             ArchiveFormat::TarGz | ArchiveFormat::TarXz => {
                 on_message("Extracting GZip archive...");
@@ -55,11 +54,11 @@ pub async fn install_package(
                 if *format == ArchiveFormat::TarGz {
                     io::copy(&mut dl_file, &mut GzipDecoder::new(&mut tar_file))
                         .await
-                        .context("Failed to extract GZip archive")?
+                        .context("Failed to decompress GZip archive")?
                 } else {
                     io::copy(&mut dl_file, &mut XzDecoder::new(&mut tar_file))
                         .await
-                        .context("Failed to extract Xz archive")?
+                        .context("Failed to decompress Xz archive")?
                 };
 
                 on_message("Analyzing tarball archive...");
@@ -70,20 +69,22 @@ pub async fn install_package(
 
                 let mut tarball = Archive::new(tar_file);
 
-                let mut stream = tarball
-                    .entries()
-                    .context("Failed to list entries from tarball")?;
+                tarball
+                    .unpack(&tmp_dir)
+                    .await
+                    .context("Failed to extract tarball archive")?;
 
                 let mut out = Vec::with_capacity(files.len());
                 let mut treated = vec![None; files.len()];
 
-                while let Some(entry) = stream.next().await {
-                    let mut entry = entry.context("Failed to get entry from tarball archive")?;
+                let extracted = read_dir_tree(tmp_dir.path())
+                    .await
+                    .context("Failed to list extracted items")?;
 
-                    let path = entry
-                        .path()
-                        .map(Cow::into_owned)
-                        .context("Failed to get entry's path from tarball")?;
+                for extracted_path in extracted {
+                    let path = extracted_path
+                        .strip_prefix(&tmp_dir)
+                        .context("Failed to determine item path from extraction directory")?;
 
                     let Some(path_str) = path.to_str() else { continue };
 
@@ -100,16 +101,9 @@ pub async fn install_package(
                             );
                         }
 
-                        let extraction_path = tmp_dir.path().join(format!("{i}.tmp"));
-
-                        entry
-                            .unpack(&extraction_path)
-                            .await
-                            .context("Failed to extract file from tarball archive")?;
-
                         out.push(ItemToCopy {
                             // original_path: Some(path_str.to_owned()),
-                            extracted_path: extraction_path,
+                            extracted_path: extracted_path.clone(),
                             file_type: file.file_type.clone(),
                         });
 
@@ -204,8 +198,8 @@ pub async fn install_package(
         }
     };
 
-    for file in &files_to_copy {
-        on_message(&match &file.file_type {
+    for item in &items_to_copy {
+        on_message(&match &item.file_type {
             AssetFileType::Binary { copy_as } => format!("Copying binary: {copy_as}..."),
             AssetFileType::ConfigDir => format!("Copying configuration directory: {}...", pkg.name),
             AssetFileType::ConfigSubDir { copy_as } => {
@@ -213,7 +207,7 @@ pub async fn install_package(
             }
         });
 
-        let (out_path, is_dir) = match &file.file_type {
+        let (out_path, is_dir) = match &item.file_type {
             AssetFileType::Binary { copy_as } => (bin_dir.join(copy_as), false),
             AssetFileType::ConfigDir => (config_dir.join(&pkg.name), true),
             AssetFileType::ConfigSubDir { copy_as } => {
@@ -222,7 +216,7 @@ pub async fn install_package(
         };
 
         if !is_dir {
-            fs::copy(&file.extracted_path, &out_path)
+            fs::copy(&item.extracted_path, &out_path)
                 .await
                 .with_context(|| {
                     format!(
@@ -231,11 +225,11 @@ pub async fn install_package(
                     )
                 })?;
         } else {
-            todo!()
+            copy_dir(&item.extracted_path, &out_path).await?;
         }
 
         // TODO: fix this as this doesn't work :(
-        fs::set_permissions(&file.extracted_path, std::fs::Permissions::from_mode(0o744))
+        fs::set_permissions(&item.extracted_path, std::fs::Permissions::from_mode(0o744))
             .await
             .context("Failed to write file's new metadata (updated permissions)")?;
     }
@@ -245,7 +239,7 @@ pub async fn install_package(
         repo_name: repo_name.to_owned(),
         version,
         at: SystemTime::now(),
-        binaries: files_to_copy
+        binaries: items_to_copy
             .iter()
             .filter_map(|file| match &file.file_type {
                 AssetFileType::Binary { copy_as } => Some(copy_as.clone()),
