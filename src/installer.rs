@@ -368,7 +368,8 @@ pub async fn update_packages(
     bin_dir: &Path,
     names: &[String],
 ) -> Result<()> {
-    let to_update = find_installed_packages(app_state, names)?;
+    let mut to_update = find_installed_packages(app_state, names)?;
+    to_update.sort_by(|a, b| a.pkg_name.cmp(&b.pkg_name));
 
     let yellow_len = to_update.len().to_string().bright_yellow();
 
