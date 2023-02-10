@@ -51,13 +51,15 @@ pub async fn install_package(
                     .await
                     .context("Failed to open downloaded file")?;
 
-                let copy_task = if *format == ArchiveFormat::TarGz {
-                    io::copy(&mut dl_file, &mut GzipDecoder::new(&mut tar_file)).await
+                if *format == ArchiveFormat::TarGz {
+                    io::copy(&mut dl_file, &mut GzipDecoder::new(&mut tar_file))
+                        .await
+                        .context("Failed to extract GZip archive")?
                 } else {
-                    io::copy(&mut dl_file, &mut XzDecoder::new(&mut tar_file)).await
+                    io::copy(&mut dl_file, &mut XzDecoder::new(&mut tar_file))
+                        .await
+                        .context("Failed to extract Xz archive")?
                 };
-
-                copy_task.context("Failed to extract GZip archive")?;
 
                 on_message("Analyzing tarball archive...");
 
