@@ -5,22 +5,17 @@ use std::{
 };
 
 use anyhow::{bail, Context, Result};
-use async_compression::tokio::write::{GzipDecoder, XzDecoder};
 use colored::Colorize;
 use dialoguer::Select;
 use tempfile::TempDir;
-use tokio::{
-    fs::{self, File},
-    io,
-};
-use tokio_tar::Archive;
-use zip::ZipArchive;
+use tokio::fs;
 
 use crate::{
     app_data::{AppState, InstalledPackage, Repositories},
+    archives::extract_archive,
     fetcher::{fetch_package, fetch_package_asset_infos},
     find_matching_packages, info, progress_bar_tracker,
-    repository::{ArchiveFormat, AssetFileType, FileFormat, Package},
+    repository::{AssetFileType, FileFormat, Package},
     selector::find_installed_packages,
     success,
     utils::{copy_dir, read_dir_tree},
@@ -37,70 +32,27 @@ pub async fn install_package(
     on_message: &Box<dyn Fn(&str)>,
 ) -> Result<InstalledPackage> {
     let items_to_copy = match &pkg.download.file_format {
+        FileFormat::Binary { filename } => vec![ItemToCopy {
+            extracted_path: dl_file_path,
+            file_type: AssetFileType::Binary {
+                copy_as: filename.clone(),
+            },
+        }],
         FileFormat::Archive { format, files } => {
-            match format {
-                ArchiveFormat::TarGz | ArchiveFormat::TarXz => {
-                    on_message("Extracting GZip archive...");
+            let extraction_path = tmp_dir.path().join("archive");
 
-                    let tar_file_path = tmp_dir.path().join("tarball.tmp");
-
-                    let mut tar_file = File::create(&tar_file_path)
-                        .await
-                        .context("Failed to create a temporary file for tarball extraction")?;
-
-                    let mut dl_file = File::open(&dl_file_path)
-                        .await
-                        .context("Failed to open downloaded file")?;
-
-                    if *format == ArchiveFormat::TarGz {
-                        io::copy(&mut dl_file, &mut GzipDecoder::new(&mut tar_file))
-                            .await
-                            .context("Failed to decompress GZip archive")?
-                    } else {
-                        io::copy(&mut dl_file, &mut XzDecoder::new(&mut tar_file))
-                            .await
-                            .context("Failed to decompress Xz archive")?
-                    };
-
-                    on_message("Analyzing tarball archive...");
-
-                    let tar_file = File::open(&tar_file_path)
-                        .await
-                        .context("Failed to open the tarball archive")?;
-
-                    let mut tarball = Archive::new(tar_file);
-
-                    tarball
-                        .unpack(&tmp_dir)
-                        .await
-                        .context("Failed to extract tarball archive")?;
-                }
-
-                ArchiveFormat::Zip => {
-                    on_message("Extracting ZIP archive...");
-
-                    let dl_file_path = dl_file_path.clone();
-                    let tmp_dir = tmp_dir.path().to_path_buf();
-
-                    let task =
-                        tokio::spawn(async move { extract_zip_sync(&dl_file_path, &tmp_dir) });
-
-                    task.await
-                        .context("Failed to run ZIP decompression task")?
-                        .context("Failed to extract ZIP archive")?;
-                }
-            }
+            extract_archive(&dl_file_path, format, &extraction_path).await?;
 
             let mut out = Vec::with_capacity(files.len());
             let mut treated = vec![None; files.len()];
 
-            let extracted = read_dir_tree(tmp_dir.path())
+            let extracted = read_dir_tree(&extraction_path)
                 .await
                 .context("Failed to list extracted items")?;
 
             for extracted_path in extracted {
                 let path = extracted_path
-                    .strip_prefix(&tmp_dir)
+                    .strip_prefix(&extraction_path)
                     .context("Failed to determine item path from extraction directory")?;
 
                 let Some(path_str) = path.to_str() else { continue };
@@ -111,11 +63,11 @@ pub async fn install_package(
                     }
 
                     if let Some(prev) = &treated[i] {
-                        bail!("Multiple entries matched the file regex ({}) in the tarball archive:\n* {}\n* {}",
-                                file.relative_path.source,
-                                prev,
-                                path_str
-                            );
+                        bail!("Multiple entries matched the file regex ({}) in the archive:\n* {}\n* {}",
+                            file.relative_path.source,
+                            prev,
+                            path_str
+                        );
                     }
 
                     out.push(ItemToCopy {
@@ -130,24 +82,12 @@ pub async fn install_package(
 
             if let Some(pos) = treated.iter().position(Option::is_none) {
                 bail!(
-                    "No entry matched the file regex ({}) in the tarball archive",
+                    "No entry matched the file regex ({}) in the archive",
                     files[pos].relative_path.source
                 );
             }
 
             out
-        }
-
-        FileFormat::Binary {
-            filename: out_filename,
-        } => {
-            vec![ItemToCopy {
-                // original_path: filename.clone(),
-                extracted_path: dl_file_path,
-                file_type: AssetFileType::Binary {
-                    copy_as: out_filename.clone(),
-                },
-            }]
         }
     };
 
@@ -200,23 +140,6 @@ pub async fn install_package(
             })
             .collect(),
     })
-}
-
-fn extract_zip_sync(zip_path: &Path, extract_to: &Path) -> Result<()> {
-    let file = std::fs::File::open(&zip_path).context("Failed to open ZIP file")?;
-
-    let mut zip = ZipArchive::new(file).unwrap();
-
-    zip.extract(extract_to)
-        .context("Failed to extract ZIP archive")?;
-
-    Ok(())
-}
-
-struct ItemToCopy {
-    // original_path: Option<String>,
-    extracted_path: PathBuf,
-    file_type: AssetFileType,
 }
 
 pub struct InstallPackageOptions {
@@ -423,4 +346,10 @@ pub async fn update_packages(
     }
 
     Ok(())
+}
+
+pub struct ItemToCopy {
+    // original_path: Option<String>,
+    extracted_path: PathBuf,
+    file_type: AssetFileType,
 }

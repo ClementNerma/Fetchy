@@ -18,6 +18,7 @@ use tokio::fs;
 use crate::installer::install_packages;
 
 mod app_data;
+mod archives;
 mod cmd;
 mod fetcher;
 mod installer;
