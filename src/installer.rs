@@ -41,6 +41,10 @@ pub async fn install_package(
         FileFormat::Archive { format, files } => {
             let extraction_path = tmp_dir.path().join("archive");
 
+            fs::create_dir(&extraction_path)
+                .await
+                .context("Failed to create a temporary directory")?;
+
             extract_archive(&dl_file_path, format, &extraction_path).await?;
 
             let mut out = Vec::with_capacity(files.len());
