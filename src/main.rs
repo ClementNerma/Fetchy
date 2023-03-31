@@ -220,7 +220,7 @@ async fn inner() -> Result<()> {
                 bail!("No repository found, please register one.");
             }
 
-            let count = install_packages(
+            let result = install_packages(
                 &bin_dir,
                 &config_dir,
                 &mut app_state,
@@ -232,17 +232,29 @@ async fn inner() -> Result<()> {
                     quiet: args.quiet,
                 },
             )
-            .await?;
+            .await;
 
-            if count > 0 {
-                save_app_state(&state_file_path, &app_state).await?;
+            match result {
+                Ok(count) => {
+                    if count > 0 {
+                        save_app_state(&state_file_path, &app_state).await?;
+                    }
+                }
+
+                Err(err) => {
+                    save_app_state(&state_file_path, &app_state).await?;
+                    return Err(err);
+                }
             }
         }
 
         Action::Update(UpdateArgs { names }) => {
-            update_packages(&mut app_state, &repositories, &bin_dir, &config_dir, &names).await?;
+            let result =
+                update_packages(&mut app_state, &repositories, &bin_dir, &config_dir, &names).await;
 
             save_app_state(&state_file_path, &app_state).await?;
+
+            result?;
         }
 
         Action::Uninstall(UninstallArgs { name }) => {
