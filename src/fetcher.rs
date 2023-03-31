@@ -153,7 +153,7 @@ pub async fn fetch_repository(repo: &RepositorySource) -> Result<Repository> {
                 .await
                 .context("Failed to read provided repository file")?;
 
-            serde_json::from_str::<Repository>(&repo_str)
+            ron::from_str::<Repository>(&repo_str)
                 .context("Failed to parse provided repository file")
         }
     }
