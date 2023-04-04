@@ -9,7 +9,7 @@ use tokio::{
 
 use crate::{
     app_data::{InstalledPackage, RepositorySource},
-    installer::install_package,
+    installer::{install_package, InstallPackageOptions},
     repository::{DownloadSource, Package, Repository, VersionExtractionSource},
     sources::*,
 };
@@ -129,7 +129,7 @@ pub async fn fetch_package(
         .await
         .context("Failed to flush the downloadd file to disk after download ended")?;
 
-    install_package(
+    install_package(InstallPackageOptions {
         pkg,
         dl_file_path,
         tmp_dir,
@@ -137,8 +137,8 @@ pub async fn fetch_package(
         config_dir,
         repo_name,
         version,
-        &progress.on_message,
-    )
+        on_message: &progress.on_message,
+    })
     .await
 }
 

@@ -10,7 +10,7 @@ use cmd::*;
 use colored::Colorize;
 use fetcher::{fetch_repository, FetchProgressTracking};
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
-use installer::{update_packages, InstallPackageOptions};
+use installer::{update_packages, InstallPackagesOptions};
 use logging::PRINT_DEBUG_MESSAGES;
 use repository::Package;
 use tokio::fs;
@@ -175,7 +175,7 @@ async fn inner() -> Result<()> {
                 &mut app_state,
                 &repositories,
                 &names,
-                InstallPackageOptions {
+                InstallPackagesOptions {
                     confirm,
                     ignore_installed: true,
                     quiet: args.quiet,
@@ -226,7 +226,7 @@ async fn inner() -> Result<()> {
                 &mut app_state,
                 &repositories,
                 &names,
-                InstallPackageOptions {
+                InstallPackagesOptions {
                     confirm: false,
                     ignore_installed: false,
                     quiet: args.quiet,

@@ -21,16 +21,31 @@ use crate::{
     utils::{copy_dir, read_dir_tree},
 };
 
+pub struct InstallPackageOptions<'a, 'b, 'c, 'd, 'e> {
+    pub pkg: &'a Package,
+    pub dl_file_path: PathBuf,
+    pub tmp_dir: TempDir,
+    pub bin_dir: &'b Path,
+    pub config_dir: &'c Path,
+    pub repo_name: &'d str,
+    pub version: String,
+    pub on_message: &'e dyn Fn(&str),
+}
+
 pub async fn install_package(
-    pkg: &Package,
-    dl_file_path: PathBuf,
-    tmp_dir: TempDir,
-    bin_dir: &Path,
-    config_dir: &Path,
-    repo_name: &str,
-    version: String,
-    on_message: &Box<dyn Fn(&str)>,
+    options: InstallPackageOptions<'_, '_, '_, '_, '_>,
 ) -> Result<InstalledPackage> {
+    let InstallPackageOptions {
+        pkg,
+        dl_file_path,
+        tmp_dir,
+        bin_dir,
+        config_dir,
+        repo_name,
+        version,
+        on_message,
+    } = options;
+
     let items_to_copy = match &pkg.download.file_format {
         FileFormat::Binary { filename } => vec![ItemToCopy {
             extracted_path: dl_file_path,
@@ -146,7 +161,7 @@ pub async fn install_package(
     })
 }
 
-pub struct InstallPackageOptions {
+pub struct InstallPackagesOptions {
     pub confirm: bool,
     pub ignore_installed: bool,
     pub quiet: bool,
@@ -158,11 +173,11 @@ pub async fn install_packages(
     app_state: &mut AppState,
     repositories: &Repositories,
     names: &[String],
-    InstallPackageOptions {
+    InstallPackagesOptions {
         confirm,
         ignore_installed,
         quiet,
-    }: InstallPackageOptions,
+    }: InstallPackagesOptions,
 ) -> Result<usize> {
     let to_install = names
         .iter()

@@ -63,7 +63,7 @@ pub async fn extract_archive(
 }
 
 fn extract_zip_sync(zip_path: &Path, extract_to: &Path) -> Result<()> {
-    let file = std::fs::File::open(&zip_path).context("Failed to open ZIP file")?;
+    let file = std::fs::File::open(zip_path).context("Failed to open ZIP file")?;
 
     let mut zip = ZipArchive::new(file).unwrap();
 

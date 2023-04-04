@@ -62,7 +62,7 @@ impl<'de> Visitor<'de> for PomskyRegexVisitor {
         })?;
 
         if regex.captures_len() > 1 {
-            E::custom(&format!(
+            E::custom(format!(
                 "Regex ({}) is only allowed to have one single capture group",
                 str
             ));
