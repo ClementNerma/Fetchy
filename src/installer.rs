@@ -13,6 +13,7 @@ use tokio::fs;
 use crate::{
     app_data::{AppState, InstalledPackage, Repositories},
     archives::extract_archive,
+    error, error_anyhow,
     fetcher::{fetch_package, fetch_package_asset_infos},
     find_matching_packages, info, progress_bar_tracker,
     repository::{AssetFileType, FileFormat, Package},
@@ -241,6 +242,8 @@ pub async fn install_packages(
         }
     }
 
+    let mut failed = 0;
+
     for (i, (repo, pkg)) in to_install.into_iter().enumerate() {
         info!(
             "==> Installing package {} from repo {} ({} / {})...",
@@ -250,9 +253,16 @@ pub async fn install_packages(
             yellow_len,
         );
 
-        let asset_infos = fetch_package_asset_infos(pkg).await?;
+        let asset_infos = match fetch_package_asset_infos(pkg).await {
+            Ok(data) => data,
+            Err(err) => {
+                error_anyhow!(err);
+                failed += 1;
+                continue;
+            }
+        };
 
-        let installed = fetch_package(
+        let installed = match fetch_package(
             pkg,
             &repo.content.name,
             asset_infos,
@@ -260,7 +270,15 @@ pub async fn install_packages(
             config_dir,
             &progress_bar_tracker(),
         )
-        .await?;
+        .await
+        {
+            Ok(data) => data,
+            Err(err) => {
+                error_anyhow!(err);
+                failed += 1;
+                continue;
+            }
+        };
 
         info!(
             "  |> Installed package version {} - deployed {} {}",
@@ -285,6 +303,10 @@ pub async fn install_packages(
         println!();
     }
 
+    if failed > 0 {
+        bail!("{} error(s) occurred.", failed.to_string().bright_yellow());
+    }
+
     Ok(total)
 }
 
@@ -300,6 +322,8 @@ pub async fn update_packages(
 
     let yellow_len = to_update.len().to_string().bright_yellow();
 
+    let mut failed = 0;
+
     for (i, installed) in to_update.into_iter().enumerate() {
         info!(
             "==> Updating package {} [from repo {}] ({} / {})...",
@@ -309,16 +333,21 @@ pub async fn update_packages(
             yellow_len,
         );
 
-        let repo = repositories
+        let repo = match repositories
             .list
             .iter()
             .find(|repo| repo.content.name == installed.repo_name)
-            .with_context(|| {
-                format!(
+        {
+            Some(data) => data,
+            None => {
+                failed += 1;
+                error!(
                     "Package {} comes from unregistered repository {}, cannot update.",
                     installed.pkg_name, installed.repo_name
-                )
-            })?;
+                );
+                continue;
+            }
+        };
 
         let Some(pkg) = repo
             .content
@@ -333,7 +362,14 @@ pub async fn update_packages(
                 continue;
             };
 
-        let asset_infos = fetch_package_asset_infos(pkg).await?;
+        let asset_infos = match fetch_package_asset_infos(pkg).await {
+            Ok(data) => data,
+            Err(err) => {
+                error_anyhow!(err);
+                failed += 1;
+                continue;
+            }
+        };
 
         if asset_infos.version == installed.version {
             info!(
@@ -345,7 +381,7 @@ pub async fn update_packages(
 
         let prev_version = installed.version.clone();
 
-        *installed = fetch_package(
+        *installed = match fetch_package(
             pkg,
             &repo.content.name,
             asset_infos,
@@ -353,7 +389,15 @@ pub async fn update_packages(
             config_dir,
             &progress_bar_tracker(),
         )
-        .await?;
+        .await
+        {
+            Ok(data) => data,
+            Err(err) => {
+                error_anyhow!(err);
+                failed += 1;
+                continue;
+            }
+        };
 
         info!(
             " |> Updated package from version {} to {}.",
@@ -362,6 +406,10 @@ pub async fn update_packages(
         );
 
         println!();
+    }
+
+    if failed > 0 {
+        bail!("{} error(s) occurred.", failed.to_string().bright_yellow());
     }
 
     Ok(())
