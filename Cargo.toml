@@ -1,10 +1,14 @@
 [package]
 name = "fetchy-pkgs"
-version = "0.1.23"
+version = "0.1.24"
 edition = "2021"
 description = "Quick packages installer"
 license = "Apache-2.0"
 repository = "https://github.com/ClementNerma/Fetchy"
+
+[[bin]]
+name = "fetchy"
+path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0.70"
@@ -29,3 +33,7 @@ tempfile = "3.5.0"
 tokio = { version = "1.27.0", features = ["macros", "rt-multi-thread", "fs"] }
 tokio-tar = "0.3.0"
 zip = "0.6.4"
+
+[profile.dist]
+inherits = "release"
+lto = "thin"
