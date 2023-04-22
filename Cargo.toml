@@ -2,6 +2,8 @@
 name = "fetchy-pkgs"
 version = "0.1.22"
 edition = "2021"
+description = "Quick packages installer"
+license = "Apache-2.0"
 
 [dependencies]
 anyhow = "1.0.70"
