@@ -54,7 +54,7 @@ async fn inner() -> Result<()> {
         .join("fetchy");
 
     if !app_data_dir.exists() {
-        fs::create_dir(&app_data_dir)
+        fs::create_dir_all(&app_data_dir)
             .await
             .context("Failed to create the application's data directory")?;
     }
