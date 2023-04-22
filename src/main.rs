@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 #![forbid(unused_must_use)]
 
-use std::{fmt::Write, path::Path};
+use std::{fmt::Write, path::Path, sync::atomic::Ordering};
 
 use anyhow::{bail, Context, Result};
 use app_data::{AppState, Repositories, RepositorySource, SourcedRepository};
@@ -46,7 +46,7 @@ async fn inner() -> Result<()> {
     let args = Cmd::parse();
 
     if args.verbose {
-        PRINT_DEBUG_MESSAGES.store(true, std::sync::atomic::Ordering::SeqCst);
+        PRINT_DEBUG_MESSAGES.store(true, Ordering::SeqCst);
     }
 
     let app_data_dir = dirs::data_local_dir()
