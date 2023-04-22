@@ -440,7 +440,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "fetchy"
+name = "fetchy-pkgs"
 version = "0.1.22"
 dependencies = [
  "anyhow",
