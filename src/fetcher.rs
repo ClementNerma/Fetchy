@@ -2,6 +2,9 @@ use std::path::Path;
 
 use anyhow::{bail, Context, Result};
 use futures_util::StreamExt;
+use once_cell::sync::Lazy;
+use pomsky_macro::pomsky;
+use regex::Regex;
 use tokio::{
     fs::{self, File},
     io::AsyncWriteExt,
@@ -10,7 +13,7 @@ use tokio::{
 use crate::{
     app_data::{InstalledPackage, RepositorySource},
     installer::{install_package, InstallPackageOptions},
-    repository::{DownloadSource, Package, Repository, VersionExtractionSource},
+    repository::{DownloadSource, Package, Repository, VersionExtraction, VersionExtractionSource},
     sources::*,
 };
 
@@ -45,7 +48,13 @@ pub async fn fetch_package_asset_infos(pkg: &Package) -> Result<FetchedPackageAs
         } => github::fetch_latest_release_asset(author, repo_name, asset_pattern).await?,
     };
 
-    let version_extraction_string = match pkg.download.version_extraction.source {
+    let VersionExtraction {
+        source,
+        regex,
+        skip_validation,
+    } = &pkg.download.version_extraction;
+
+    let version = match source {
         VersionExtractionSource::Url => &url,
         VersionExtractionSource::ReleaseTitle => release_title
             .as_ref()
@@ -58,26 +67,36 @@ pub async fn fetch_package_asset_infos(pkg: &Package) -> Result<FetchedPackageAs
             .context("Cannot match on non-existent tag name")?,
     };
 
-    let version = pkg
-        .download
-        .version_extraction
-        .regex
-        .regex
-        .captures(version_extraction_string)
-        .with_context(|| {
-            format!("Version extraction regex ({}) did not match on string: {version_extraction_string}", pkg.download.version_extraction.regex.source)
-        })?
-        .get(1)
-        .with_context(|| {
-            format!(
-                "Missing version capture group on regex: {}",
-                pkg.download.version_extraction.regex.source
-            )
-        })?
-        .as_str()
-        .to_owned();
+    let version = match regex {
+        None => version,
+        Some(regex) => regex
+            .regex
+            .captures(version)
+            .with_context(|| {
+                format!(
+                    "Version extraction regex ({}) did not match on string: {version}",
+                    regex.source
+                )
+            })?
+            .get(1)
+            .with_context(|| format!("Missing version capture group on regex: {}", regex.source))?
+            .as_str(),
+    };
 
-    Ok(FetchedPackageAssetInfos { url, version })
+    let version = match skip_validation {
+        Some(true) => version,
+        Some(false) | None => VERSION_VALIDATOR
+            .captures(version)
+            .with_context(|| format!("Version validation failed on: {version}"))?
+            .get(1)
+            .unwrap()
+            .as_str(),
+    };
+
+    Ok(FetchedPackageAssetInfos {
+        version: version.to_string(),
+        url,
+    })
 }
 
 pub async fn fetch_package(
@@ -165,3 +184,10 @@ pub struct Asset {
     pub release_title: Option<String>,
     pub tag_name: Option<String>,
 }
+
+static VERSION_VALIDATOR: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(pomsky!(
+        Start 'v'? [s]* [d '.']+ End
+    ))
+    .unwrap()
+});

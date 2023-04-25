@@ -61,7 +61,8 @@ pub enum ArchiveFormat {
 #[derive(Serialize, Deserialize)]
 pub struct VersionExtraction {
     pub source: VersionExtractionSource,
-    pub regex: Pattern,
+    pub regex: Option<Pattern>,
+    pub skip_validation: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize)]
