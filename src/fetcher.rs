@@ -187,7 +187,7 @@ pub struct Asset {
 
 static VERSION_VALIDATOR: Lazy<Regex> = Lazy::new(|| {
     Regex::new(pomsky!(
-        Start 'v'? [s]* [d '.']+ End
+        Start 'v'? [s]* [L d '.' '-']+ End
     ))
     .unwrap()
 });
