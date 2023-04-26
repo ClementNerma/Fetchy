@@ -84,3 +84,13 @@ pub async fn read_dir_tree(dir: &Path) -> Result<Vec<PathBuf>> {
 
     Ok(out)
 }
+
+#[macro_export]
+macro_rules! largest_key_width {
+    ($vec: expr, $key: ident) => {
+        $vec.iter()
+            .map(|value| ::unicode_width::UnicodeWidthStr::width(value.$key.as_str()))
+            .max()
+            .expect("Provided list is empty")
+    };
+}

@@ -2,12 +2,13 @@
 #![forbid(unused_must_use)]
 #![forbid(unused_crate_dependencies)]
 
+use glob::Pattern;
 use openssl_sys as _;
 
 use std::{fmt::Write, path::Path, sync::atomic::Ordering};
 
 use anyhow::{bail, Context, Result};
-use app_data::{AppState, Repositories, RepositorySource, SourcedRepository};
+use app_data::{AppState, InstalledPackage, Repositories, RepositorySource, SourcedRepository};
 use clap::Parser;
 use cmd::*;
 use colored::Colorize;
@@ -97,7 +98,7 @@ async fn inner() -> Result<()> {
     };
 
     match args.action {
-        Action::Path(PathArgs {}) => {
+        Action::Path => {
             print!(
                 "{}",
                 bin_dir
@@ -106,72 +107,133 @@ async fn inner() -> Result<()> {
             );
         }
 
-        Action::AddRepo(AddRepoArgs { file, ignore }) => {
-            let repo = fetch_repository(&RepositorySource::File(file.clone())).await?;
+        Action::Repos(action) => match action {
+            ReposAction::Add(AddRepoArgs { file, ignore }) => {
+                let repo = fetch_repository(&RepositorySource::File(file.clone())).await?;
 
-            let already_exists = repositories
-                .list
-                .iter()
-                .any(|other| other.content.name == repo.name);
+                let already_exists = repositories
+                    .list
+                    .iter()
+                    .any(|other| other.content.name == repo.name);
 
-            if already_exists {
-                if !ignore {
-                    bail!(
-                        "Another repository is already registered with the name: {}",
-                        repo.name.bright_magenta()
+                if already_exists {
+                    if !ignore {
+                        bail!(
+                            "Another repository is already registered with the name: {}",
+                            repo.name.bright_magenta()
+                        );
+                    }
+                } else {
+                    repositories.list.push(SourcedRepository {
+                        content: repo,
+                        source: RepositorySource::File(file),
+                    });
+
+                    success!("Successfully added the repository!");
+
+                    save_repositories(&repositories_file_path, &repositories).await?;
+                }
+            }
+
+            ReposAction::List => {
+                info!(
+                    "There are {} registered repositories:\n",
+                    repositories.list.len()
+                );
+
+                for (i, sourced) in repositories.list.iter().enumerate() {
+                    info!(
+                        "* {:>2}. {}",
+                        (i + 1).to_string().bright_yellow(),
+                        sourced.content.name.bright_magenta()
                     );
                 }
-            } else {
-                repositories.list.push(SourcedRepository {
-                    content: repo,
-                    source: RepositorySource::File(file),
-                });
+            }
 
-                success!("Successfully added the repository!");
+            ReposAction::Update => {
+                let yellow_len = repositories.list.len().to_string().bright_yellow();
+
+                for (i, sourced) in repositories.list.iter_mut().enumerate() {
+                    if !args.quiet {
+                        info!(
+                            "==> Updating repository {} ({} / {})...",
+                            sourced.content.name.bright_magenta(),
+                            (i + 1).to_string().bright_yellow(),
+                            yellow_len
+                        );
+                    }
+
+                    sourced.content = fetch_repository(&sourced.source).await?;
+                }
+
+                if !args.quiet {
+                    success!("Successfully updated all repositories!");
+                }
 
                 save_repositories(&repositories_file_path, &repositories).await?;
             }
+        },
+
+        Action::Search(SearchArgs {
+            filter,
+            show_installed,
+        }) => {
+            let filter = filter
+                .map(|filter| Pattern::new(&filter))
+                .transpose()
+                .context("Failed to parse provided glob pattern")?;
+
+            let installable = repositories
+                .list
+                .iter()
+                .flat_map(|repo| repo.content.packages.iter().map(move |pkg| (pkg, repo)))
+                .filter(|(pkg, _)| match filter {
+                    None => true,
+                    Some(ref filter) => filter.matches(&pkg.name),
+                })
+                .filter(|(pkg, repo)| {
+                    show_installed
+                        || !app_state
+                            .installed
+                            .iter()
+                            .any(|c| c.pkg_name == pkg.name && c.repo_name == repo.content.name)
+                });
+
+            for (pkg, _) in installable {
+                println!("{}", pkg.name.bright_yellow());
+            }
         }
 
-        Action::ListRepos(ListReposArgs {}) => {
-            info!(
-                "There are {} registered repositories:\n",
-                repositories.list.len()
-            );
+        Action::Require(RequireArgs {
+            names,
+            no_install,
+            confirm,
+        }) => {
+            let missing = names
+                .iter()
+                .filter(|name| {
+                    !app_state
+                        .installed
+                        .iter()
+                        .any(|installed| &&installed.pkg_name == name)
+                })
+                .collect::<Vec<_>>();
 
-            for (i, sourced) in repositories.list.iter().enumerate() {
-                info!(
-                    "* {:>2}. {}",
-                    (i + 1).to_string().bright_yellow(),
-                    sourced.content.name.bright_magenta()
+            if missing.is_empty() {
+                return Ok(());
+            }
+
+            if no_install {
+                bail!(
+                    "Detected the following missing packages:\n{}",
+                    missing
+                        .iter()
+                        .map(|name| format!("* {}", name.bright_yellow()))
+                        .collect::<Vec<_>>()
+                        .join("\n")
                 );
             }
-        }
 
-        Action::UpdateRepos(UpdateReposArgs {}) => {
-            let yellow_len = repositories.list.len().to_string().bright_yellow();
-
-            for (i, sourced) in repositories.list.iter_mut().enumerate() {
-                if !args.quiet {
-                    info!(
-                        "==> Updating repository {} ({} / {})...",
-                        sourced.content.name.bright_magenta(),
-                        (i + 1).to_string().bright_yellow(),
-                        yellow_len
-                    );
-                }
-
-                sourced.content = fetch_repository(&sourced.source).await?;
-            }
-
-            if !args.quiet {
-                success!("Successfully updated all repositories!");
-            }
-
-            save_repositories(&repositories_file_path, &repositories).await?;
-        }
-
-        Action::Require(RequireArgs { names, confirm }) => {
             install_packages(InstallPackagesOptions {
                 bin_dir: &bin_dir,
                 config_dir: &config_dir,
@@ -184,33 +246,6 @@ async fn inner() -> Result<()> {
                 quiet: args.quiet,
             })
             .await?;
-        }
-
-        Action::CheckInstalled(CheckInstalledArgs { names }) => {
-            let missing = names
-                .iter()
-                .filter(|name| {
-                    !app_state
-                        .installed
-                        .iter()
-                        .any(|installed| &&installed.pkg_name == name)
-                })
-                .collect::<Vec<_>>();
-
-            if !missing.is_empty() {
-                bail!(
-                    "Detected the following missing packages:\n{}",
-                    missing
-                        .iter()
-                        .map(|name| format!("* {}", name.bright_yellow()))
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                );
-            }
-
-            if !args.quiet {
-                success!("All provided packages are already installed!");
-            }
         }
 
         Action::Install(InstallArgs { names }) => {
@@ -230,6 +265,51 @@ async fn inner() -> Result<()> {
                 quiet: args.quiet,
             })
             .await?;
+        }
+
+        Action::Installed(InstalledArgs { sort_by, rev_sort }) => {
+            let mut installed: Vec<_> = app_state.installed.iter().collect();
+
+            if installed.is_empty() {
+                warn!("No package installed.");
+                return Ok(());
+            }
+
+            match sort_by {
+                None | Some(PkgSortBy::Name) => installed.sort_by_key(|pkg| &pkg.pkg_name),
+                Some(PkgSortBy::InstallDate) => installed.sort_by_key(|pkg| pkg.at),
+            }
+
+            if rev_sort {
+                installed.reverse();
+            }
+
+            let largest_pkg_name = largest_key_width!(installed, pkg_name);
+            let largest_pkg_version = largest_key_width!(installed, version);
+            let largest_pkg_repo_name = largest_key_width!(installed, repo_name);
+
+            for InstalledPackage {
+                pkg_name,
+                repo_name,
+                version,
+                at: _,
+                binaries,
+            } in installed
+            {
+                print!(
+                    "{} {} {} {} ",
+                    "*".bright_yellow(),
+                    format!("{pkg_name:largest_pkg_name$}").bright_cyan(),
+                    format!("{version:largest_pkg_version$}").bright_yellow(),
+                    format!("[{repo_name:largest_pkg_repo_name$}]").bright_magenta(),
+                );
+
+                for bin in binaries {
+                    print!("{}", bin.bright_green().underline());
+                }
+
+                println!();
+            }
         }
 
         Action::Update(UpdateArgs { names }) => {

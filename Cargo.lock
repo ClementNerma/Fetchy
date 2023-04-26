@@ -441,7 +441,7 @@ dependencies = [
 
 [[package]]
 name = "fetchy-pkgs"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "async-compression",
@@ -451,6 +451,7 @@ dependencies = [
  "dialoguer",
  "dirs",
  "futures-util",
+ "glob",
  "indicatif",
  "once_cell",
  "openssl-sys",
@@ -463,6 +464,7 @@ dependencies = [
  "tar",
  "tempfile",
  "tokio",
+ "unicode-width",
  "zip",
 ]
 
@@ -599,6 +601,12 @@ dependencies = [
  "libc",
  "wasi",
 ]
+
+[[package]]
+name = "glob"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
 
 [[package]]
 name = "h2"

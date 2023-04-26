@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 
 #[derive(Parser)]
 #[clap(version, about, author)]
@@ -18,27 +18,22 @@ pub struct Cmd {
 #[derive(Subcommand)]
 pub enum Action {
     #[clap(about = "Path to the binaries directory")]
-    Path(PathArgs),
+    Path,
 
-    #[clap(name = "repos:add", about = "Add a repository")]
-    AddRepo(AddRepoArgs),
+    #[clap(subcommand, about = "Manage repositories")]
+    Repos(ReposAction),
 
-    #[clap(name = "repos:update", about = "Update repositories")]
-    UpdateRepos(UpdateReposArgs),
+    #[clap(about = "Search available packages")]
+    Search(SearchArgs),
 
-    #[clap(name = "repos:list", about = "List registered repositories")]
-    ListRepos(ListReposArgs),
-
-    // #[clap(about = "Remove repositories")]
-    // RemoveRepos(RemoveReposArgs),
     #[clap(about = "Install packages")]
     Install(InstallArgs),
 
+    #[clap(about = "List installed packages")]
+    Installed(InstalledArgs),
+
     #[clap(about = "Require some packages to be installed")]
     Require(RequireArgs),
-
-    #[clap(about = "Check if a list of packages is installed")]
-    CheckInstalled(CheckInstalledArgs),
 
     #[clap(about = "Update installed packages")]
     Update(UpdateArgs),
@@ -47,8 +42,20 @@ pub enum Action {
     Uninstall(UninstallArgs),
 }
 
-#[derive(Args)]
-pub struct PathArgs {}
+// #[derive(Args)]
+// pub struct PathArgs {}
+
+#[derive(Subcommand)]
+pub enum ReposAction {
+    #[clap(about = "Add a repository")]
+    Add(AddRepoArgs),
+
+    #[clap(about = "Update repositories")]
+    Update,
+
+    #[clap(about = "List registered repositories")]
+    List,
+}
 
 #[derive(Args)]
 pub struct AddRepoArgs {
@@ -63,11 +70,20 @@ pub struct AddRepoArgs {
     pub ignore: bool,
 }
 
-#[derive(Args)]
-pub struct UpdateReposArgs {}
+// #[derive(Args)]
+// pub struct UpdateReposArgs {}
+
+// #[derive(Args)]
+// pub struct ListReposArgs {}
 
 #[derive(Args)]
-pub struct ListReposArgs {}
+pub struct SearchArgs {
+    #[clap(help = "Filter packages with a glob pattern")]
+    pub filter: Option<String>,
+
+    #[clap(short, long, help = "Don't hide installed packages")]
+    pub show_installed: bool,
+}
 
 #[derive(Args)]
 pub struct InstallArgs {
@@ -76,18 +92,35 @@ pub struct InstallArgs {
 }
 
 #[derive(Args)]
+pub struct InstalledArgs {
+    #[clap(help = "Sort packages")]
+    pub sort_by: Option<PkgSortBy>,
+
+    #[clap(short, long, help = "Reverse sort order")]
+    pub rev_sort: bool,
+}
+
+#[derive(ValueEnum, Clone, Copy)]
+pub enum PkgSortBy {
+    Name,
+    InstallDate,
+}
+
+#[derive(Args)]
 pub struct RequireArgs {
     #[clap(help = "Name of the package(s) to install")]
     pub names: Vec<String>,
 
-    #[clap(short, long, help = "Ask for confirmation before installing")]
-    pub confirm: bool,
-}
+    #[clap(short, long, help = "Don't install missing packages")]
+    pub no_install: bool,
 
-#[derive(Args)]
-pub struct CheckInstalledArgs {
-    #[clap(help = "Name of the package(s) to check")]
-    pub names: Vec<String>,
+    #[clap(
+        short,
+        long,
+        conflicts_with = "no_install",
+        help = "Ask for confirmation before installing"
+    )]
+    pub confirm: bool,
 }
 
 #[derive(Args)]
