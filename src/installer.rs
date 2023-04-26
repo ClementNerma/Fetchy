@@ -71,10 +71,18 @@ pub async fn install_package(
                 .await
                 .context("Failed to list extracted items")?;
 
+            let mut archive_files = vec![];
+
             for extracted_path in extracted {
                 let path = extracted_path
                     .strip_prefix(&extraction_path)
                     .context("Failed to determine item path from extraction directory")?;
+
+                if path.is_dir() {
+                    continue;
+                }
+
+                archive_files.push(path.to_string_lossy().to_string());
 
                 let Some(path_str) = path.to_str() else { continue };
 
@@ -103,8 +111,13 @@ pub async fn install_package(
 
             if let Some(pos) = treated.iter().position(Option::is_none) {
                 bail!(
-                    "No entry matched the file regex ({}) in the archive",
-                    files[pos].relative_path.source
+                    "No entry matched the file regex ({}) in the archive. Contained files are:\n{}",
+                    files[pos].relative_path.source,
+                    archive_files
+                        .iter()
+                        .map(|file| format!("* {file}"))
+                        .collect::<Vec<_>>()
+                        .join("\n")
                 );
             }
 

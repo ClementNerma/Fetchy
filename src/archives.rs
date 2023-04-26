@@ -2,7 +2,10 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use async_compression::tokio::write::{GzipDecoder, XzDecoder};
-use tokio::{fs::File, io};
+use tokio::{
+    fs::{self, File},
+    io,
+};
 use tokio_tar::Archive;
 use zip::ZipArchive;
 
@@ -45,6 +48,10 @@ pub async fn extract_archive(
                 .unpack(&extract_to)
                 .await
                 .context("Failed to extract tarball archive")?;
+
+            fs::remove_file(tar_file_path)
+                .await
+                .context("Failed to remove the temporary tarball file")?;
         }
 
         ArchiveFormat::Zip => {
