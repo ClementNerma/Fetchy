@@ -17,6 +17,7 @@ use crate::{
     fetcher::{fetch_package, fetch_package_asset_infos},
     find_matching_packages, info, progress_bar_tracker,
     repository::{AssetFileType, FileFormat, Package},
+    save_app_state,
     selector::find_installed_packages,
     success,
     utils::{copy_dir, read_dir_tree},
@@ -162,24 +163,31 @@ pub async fn install_package(
     })
 }
 
-pub struct InstallPackagesOptions {
+pub struct InstallPackagesOptions<'a, 'b, 'c, 'd, 'e, 'f> {
+    pub bin_dir: &'a Path,
+    pub config_dir: &'b Path,
+    pub app_state: &'c mut AppState,
+    pub state_file_path: &'d Path,
+    pub repositories: &'e Repositories,
+    pub names: &'f [String],
     pub confirm: bool,
     pub ignore_installed: bool,
     pub quiet: bool,
 }
 
 pub async fn install_packages(
-    bin_dir: &Path,
-    config_dir: &Path,
-    app_state: &mut AppState,
-    repositories: &Repositories,
-    names: &[String],
     InstallPackagesOptions {
+        bin_dir,
+        config_dir,
+        app_state,
+        state_file_path,
+        repositories,
+        names,
         confirm,
         ignore_installed,
         quiet,
-    }: InstallPackagesOptions,
-) -> Result<usize> {
+    }: InstallPackagesOptions<'_, '_, '_, '_, '_, '_>,
+) -> Result<()> {
     let to_install = names
         .iter()
         .filter(|name| {
@@ -215,7 +223,7 @@ pub async fn install_packages(
             success!("Nothing to install!");
         }
 
-        return Ok(0);
+        return Ok(());
     }
 
     let total = to_install.len();
@@ -301,13 +309,15 @@ pub async fn install_packages(
         }
 
         println!();
+
+        save_app_state(state_file_path, app_state).await?;
     }
 
     if failed > 0 {
         bail!("{} error(s) occurred.", failed.to_string().bright_yellow());
     }
 
-    Ok(total)
+    Ok(())
 }
 
 pub async fn update_packages(

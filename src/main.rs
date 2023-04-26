@@ -169,23 +169,18 @@ async fn inner() -> Result<()> {
         }
 
         Action::Require(RequireArgs { names, confirm }) => {
-            let count = install_packages(
-                &bin_dir,
-                &config_dir,
-                &mut app_state,
-                &repositories,
-                &names,
-                InstallPackagesOptions {
-                    confirm,
-                    ignore_installed: true,
-                    quiet: args.quiet,
-                },
-            )
+            install_packages(InstallPackagesOptions {
+                bin_dir: &bin_dir,
+                config_dir: &config_dir,
+                app_state: &mut app_state,
+                state_file_path: &state_file_path,
+                repositories: &repositories,
+                names: &names,
+                confirm,
+                ignore_installed: true,
+                quiet: args.quiet,
+            })
             .await?;
-
-            if count > 0 {
-                save_app_state(&state_file_path, &app_state).await?;
-            }
         }
 
         Action::CheckInstalled(CheckInstalledArgs { names }) => {
@@ -220,32 +215,18 @@ async fn inner() -> Result<()> {
                 bail!("No repository found, please register one.");
             }
 
-            let result = install_packages(
-                &bin_dir,
-                &config_dir,
-                &mut app_state,
-                &repositories,
-                &names,
-                InstallPackagesOptions {
-                    confirm: false,
-                    ignore_installed: false,
-                    quiet: args.quiet,
-                },
-            )
-            .await;
-
-            match result {
-                Ok(count) => {
-                    if count > 0 {
-                        save_app_state(&state_file_path, &app_state).await?;
-                    }
-                }
-
-                Err(err) => {
-                    save_app_state(&state_file_path, &app_state).await?;
-                    return Err(err);
-                }
-            }
+            install_packages(InstallPackagesOptions {
+                bin_dir: &bin_dir,
+                config_dir: &config_dir,
+                app_state: &mut app_state,
+                state_file_path: &state_file_path,
+                repositories: &repositories,
+                names: &names,
+                confirm: false,
+                ignore_installed: false,
+                quiet: args.quiet,
+            })
+            .await?;
         }
 
         Action::Update(UpdateArgs { names }) => {
