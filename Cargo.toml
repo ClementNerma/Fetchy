@@ -28,9 +28,9 @@ reqwest = { version = "0.11.16", features = ["stream"] }
 ron = "0.8.0"
 serde = { version = "1.0.160", features = ["derive"] }
 serde_json = "1.0.96"
+tar = "0.4.38"
 tempfile = "3.5.0"
 tokio = { version = "1.27.0", features = ["macros", "rt-multi-thread", "fs"] }
-tokio-tar = "0.3.0"
 zip = "0.6.4"
 
 [profile.dist]
