@@ -38,7 +38,9 @@ pub async fn extract_archive(
                     .context("Failed to decompress Xz archive")?
             };
 
-            tokio::spawn(async move { extract_tar_sync(&archive_path, &extract_to) })
+            let tar_file_path_dup = tar_file_path.clone();
+
+            tokio::spawn(async move { extract_tar_sync(&tar_file_path_dup, &extract_to) })
                 .await
                 .context("Failed to run TAR decompression task")?
                 .context("Failed to extract TAR archive")?;
