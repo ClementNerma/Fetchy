@@ -1,11 +1,8 @@
-use pomsky::{diagnose::Severity, options::CompileOptions};
 use regex::Regex;
 use serde::{
     de::{Error, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
 };
-
-use crate::{error, warn};
 
 pub struct Pattern {
     pub source: String,
@@ -22,44 +19,21 @@ impl Serialize for Pattern {
     }
 }
 
-struct PomskyRegexVisitor;
+struct RegexVisitor;
 
-impl<'de> Visitor<'de> for PomskyRegexVisitor {
+impl<'de> Visitor<'de> for RegexVisitor {
     type Value = Pattern;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str(" a Pomsky regex")
+        formatter.write_str(" a rust regex")
     }
 
     fn visit_str<E>(self, str: &str) -> Result<Self::Value, E>
     where
         E: Error,
     {
-        let (expr, warnings) = pomsky::Expr::parse(str);
-
-        for warn in warnings {
-            match warn.severity {
-                Severity::Error => error!("Failed to parse Pomsky regex: {}", warn.msg),
-                Severity::Warning => warn!("Pomsky emitted a warning: {}", warn.msg),
-            }
-        }
-
-        let expr = expr.ok_or_else(|| E::custom("Regex could not be parsed"))?;
-
-        let compiled = expr
-            .compile(str, CompileOptions::default())
-            .map_err(|err| {
-                E::custom(format!(
-                    "Failed to compile provided regex ({str}): {}",
-                    err.msg
-                ))
-            })?;
-
-        let regex = Regex::new(&compiled).map_err(|err| {
-            E::custom(format!(
-                "Failed to parse compiled regex ({compiled}): {err}"
-            ))
-        })?;
+        let regex = Regex::new(str)
+            .map_err(|err| E::custom(format!("Failed to parse regex ({str}): {err}")))?;
 
         if regex.captures_len() > 1 {
             E::custom(format!(
@@ -81,6 +55,6 @@ impl<'de> Deserialize<'de> for Pattern {
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_str(PomskyRegexVisitor)
+        deserializer.deserialize_str(RegexVisitor)
     }
 }
