@@ -1,5 +1,8 @@
 #![forbid(unsafe_code)]
 #![forbid(unused_must_use)]
+#![forbid(unused_crate_dependencies)]
+
+use openssl_sys as _;
 
 use std::{fmt::Write, path::Path, sync::atomic::Ordering};
 
