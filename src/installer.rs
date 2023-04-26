@@ -62,7 +62,7 @@ pub async fn install_package(
                 .await
                 .context("Failed to create a temporary directory")?;
 
-            extract_archive(&dl_file_path, format, &extraction_path).await?;
+            extract_archive(dl_file_path, format, extraction_path.clone()).await?;
 
             let mut out = Vec::with_capacity(files.len());
             let mut treated = vec![None; files.len()];

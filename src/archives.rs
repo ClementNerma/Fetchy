@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use async_compression::tokio::write::{GzipDecoder, XzDecoder};
@@ -12,9 +12,9 @@ use zip::ZipArchive;
 use crate::repository::ArchiveFormat;
 
 pub async fn extract_archive(
-    archive_path: &Path,
+    archive_path: PathBuf,
     format: &ArchiveFormat,
-    extract_to: &Path,
+    extract_to: PathBuf,
 ) -> Result<()> {
     match format {
         ArchiveFormat::TarGz | ArchiveFormat::TarXz => {
@@ -38,10 +38,7 @@ pub async fn extract_archive(
                     .context("Failed to decompress Xz archive")?
             };
 
-            let archive_path = tar_file_path.clone();
-            let tmp_dir = extract_to.to_path_buf();
-
-            tokio::spawn(async move { extract_tar_sync(&archive_path, &tmp_dir) })
+            tokio::spawn(async move { extract_tar_sync(&archive_path, &extract_to) })
                 .await
                 .context("Failed to run TAR decompression task")?
                 .context("Failed to extract TAR archive")?;
@@ -52,10 +49,7 @@ pub async fn extract_archive(
         }
 
         ArchiveFormat::Zip => {
-            let archive_path = archive_path.to_path_buf();
-            let tmp_dir = extract_to.to_path_buf();
-
-            tokio::spawn(async move { extract_zip_sync(&archive_path, &tmp_dir) })
+            tokio::spawn(async move { extract_zip_sync(&archive_path, &extract_to) })
                 .await
                 .context("Failed to run ZIP decompression task")?
                 .context("Failed to extract ZIP archive")?;
