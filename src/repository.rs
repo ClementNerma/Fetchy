@@ -30,7 +30,7 @@ pub struct PackageDownload {
 #[derive(Serialize, Deserialize)]
 pub enum DownloadSource {
     Direct {
-        url: String,
+        url: PlatformDependent<String>,
     },
     GitHub {
         author: String,
