@@ -36,7 +36,7 @@ pub async fn fetch_package_asset_infos(pkg: &Package) -> Result<FetchedPackageAs
         tag_name,
     } = match &pkg.download.source {
         DownloadSource::Direct { url } => Asset {
-            url: url.clone(),
+            url: url.get_for_current_platform()?.clone(),
             filename: None,
             release_title: None,
             tag_name: None,
