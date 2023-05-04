@@ -45,7 +45,14 @@ pub async fn fetch_package_asset_infos(pkg: &Package) -> Result<FetchedPackageAs
             author,
             repo_name,
             asset_pattern,
-        } => github::fetch_latest_release_asset(author, repo_name, asset_pattern).await?,
+        } => {
+            github::fetch_latest_release_asset(
+                author,
+                repo_name,
+                asset_pattern.get_for_current_platform()?,
+            )
+            .await?
+        }
     };
 
     let VersionExtraction {

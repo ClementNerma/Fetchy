@@ -3,7 +3,7 @@ use pomsky_macro::pomsky;
 use regex::Regex;
 use serde::{de::Error, Deserialize, Deserializer, Serialize};
 
-use crate::pattern::Pattern;
+use crate::{arch::PlatformDependent, pattern::Pattern};
 
 #[derive(Serialize, Deserialize)]
 pub struct Repository {
@@ -35,7 +35,7 @@ pub enum DownloadSource {
     GitHub {
         author: String,
         repo_name: String,
-        asset_pattern: Pattern,
+        asset_pattern: PlatformDependent<Pattern>,
     },
 }
 
