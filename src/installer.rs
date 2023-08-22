@@ -1,5 +1,4 @@
 use std::{
-    os::unix::prelude::PermissionsExt,
     path::{Path, PathBuf},
     time::SystemTime,
 };
@@ -151,14 +150,18 @@ pub async fn install_package(
                         out_path.file_name().unwrap().to_string_lossy()
                     )
                 })?;
+
+            #[cfg(target_family = "unix")]
+            {
+                use std::os::unix::fs::PermissionsExt;
+
+                fs::set_permissions(&out_path, std::fs::Permissions::from_mode(0o755))
+                    .await
+                    .context("Failed to write file's new metadata (updated permissions)")?;
+            }
         } else {
             copy_dir(&item.extracted_path, &out_path).await?;
         }
-
-        // TODO: fix this as this doesn't work :(
-        fs::set_permissions(&item.extracted_path, std::fs::Permissions::from_mode(0o744))
-            .await
-            .context("Failed to write file's new metadata (updated permissions)")?;
     }
 
     Ok(InstalledPackage {
