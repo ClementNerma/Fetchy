@@ -2,7 +2,7 @@ use anyhow::{bail, Context, Result};
 use reqwest::{blocking::Client, StatusCode};
 use serde::{Deserialize, Serialize};
 
-use crate::{fetcher::Asset, pattern::Pattern};
+use crate::{debug, fetcher::Asset, pattern::Pattern};
 
 pub fn fetch_latest_release_asset(
     author: &str,
@@ -49,10 +49,12 @@ pub fn fetch_latest_release_asset(
 }
 
 fn fetch_latest_release(author: &str, repo_name: &str) -> Result<GitHubRelease> {
+    let url = format!("https://api.github.com/repos/{author}/{repo_name}/releases/latest");
+
+    debug!("Fetching latest release from: {url}");
+
     let resp = Client::new()
-        .get(format!(
-            "https://api.github.com/repos/{author}/{repo_name}/releases/latest"
-        ))
+        .get(url)
         .header(reqwest::header::USER_AGENT, "FetchyAppUserAgent")
         .send()
         .with_context(|| {

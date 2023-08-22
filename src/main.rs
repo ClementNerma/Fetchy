@@ -72,8 +72,6 @@ fn inner() -> Result<()> {
     }
 
     let app_state = || -> Result<AppState> {
-        debug!("Loading app state...");
-
         if state_file_path.exists() {
             let json = fs::read_to_string(&state_file_path)
                 .context("Failed to read application's data file")?;
@@ -86,8 +84,6 @@ fn inner() -> Result<()> {
     };
 
     let repositories = || -> Result<Repositories> {
-        debug!("Loading repositories...");
-
         if repositories_file_path.exists() {
             let json = fs::read_to_string(&repositories_file_path)
                 .context("Failed to read the repositories file")?;
