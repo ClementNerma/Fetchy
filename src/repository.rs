@@ -25,6 +25,7 @@ pub struct PackageDownload {
     pub source: DownloadSource,
     pub file_format: FileFormat,
     pub version_extraction: VersionExtraction,
+    pub skip_version_validation: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -59,18 +60,12 @@ pub enum ArchiveFormat {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct VersionExtraction {
-    pub source: VersionExtractionSource,
-    pub regex: Option<Pattern>,
-    pub skip_validation: Option<bool>,
-}
-
-#[derive(Serialize, Deserialize)]
-pub enum VersionExtractionSource {
-    Url,
-    ReleaseTitle,
-    DownloadedFileName,
-    TagName,
+pub enum VersionExtraction {
+    Url { regex: Pattern },
+    ReleaseTitle { regex: Option<Pattern> },
+    TagName { regex: Option<Pattern> },
+    DownloadedFileName { regex: Pattern },
+    Hardcoded { version: String },
 }
 
 #[derive(Serialize, Deserialize)]

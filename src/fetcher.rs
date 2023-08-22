@@ -12,7 +12,7 @@ use regex::Regex;
 use crate::{
     app_data::{InstalledPackage, RepositorySource},
     installer::{install_package, InstallPackageOptions},
-    repository::{DownloadSource, Package, Repository, VersionExtraction, VersionExtractionSource},
+    repository::{DownloadSource, Package, Repository, VersionExtraction},
     sources::*,
 };
 
@@ -45,42 +45,37 @@ pub fn fetch_package_asset_infos(pkg: &Package) -> Result<FetchedPackageAssetInf
         )?,
     };
 
-    let VersionExtraction {
-        source,
-        regex,
-        skip_validation,
-    } = &pkg.download.version_extraction;
-
-    let version = match source {
-        VersionExtractionSource::Url => &url,
-        VersionExtractionSource::ReleaseTitle => release_title
-            .as_ref()
-            .context("Cannot match on non-existent release title")?,
-        VersionExtractionSource::DownloadedFileName => filename
-            .as_ref()
-            .context("Cannot match on non-existent filename")?,
-        VersionExtractionSource::TagName => tag_name
-            .as_ref()
-            .context("Cannot match on non-existent tag name")?,
+    let (match_on, regex, nature) = match &pkg.download.version_extraction {
+        VersionExtraction::Url { regex } => (Some(&url), Some(regex), "URL"),
+        VersionExtraction::ReleaseTitle { regex } => {
+            (release_title.as_ref(), regex.as_ref(), "release title")
+        }
+        VersionExtraction::TagName { regex } => (tag_name.as_ref(), regex.as_ref(), "tag name"),
+        VersionExtraction::DownloadedFileName { regex } => {
+            (filename.as_ref(), Some(regex), "downloaded file name")
+        }
+        VersionExtraction::Hardcoded { version } => (Some(version), None, "version"),
     };
 
+    let match_on = match_on.with_context(|| format!("No {nature} was found"))?;
+
     let version = match regex {
-        None => version,
-        Some(regex) => regex
+        None => match_on.as_str(),
+        Some(pat) => pat
             .regex
-            .captures(version)
+            .captures(match_on)
             .with_context(|| {
                 format!(
-                    "Version extraction regex ({}) did not match on string: {version}",
-                    regex.source
+                    "Version extraction regex ({}) did not match on {nature}: {match_on}",
+                    pat.source
                 )
             })?
             .get(1)
-            .with_context(|| format!("Missing version capture group on regex: {}", regex.source))?
+            .with_context(|| format!("Missing version capture group on regex: {}", pat.source))?
             .as_str(),
     };
 
-    let version = match skip_validation {
+    let version = match pkg.download.skip_version_validation {
         Some(true) => version,
         Some(false) | None => VERSION_VALIDATOR
             .captures(version)
