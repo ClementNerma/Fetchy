@@ -71,24 +71,28 @@ fn inner() -> Result<()> {
         fs::create_dir(&bin_dir).context("Failed to create the binaries directory")?;
     }
 
-    let mut app_state = if state_file_path.exists() {
-        let json = fs::read_to_string(&state_file_path)
-            .context("Failed to read application's data file")?;
+    let app_state = || -> Result<AppState> {
+        if state_file_path.exists() {
+            let json = fs::read_to_string(&state_file_path)
+                .context("Failed to read application's data file")?;
 
-        serde_json::from_str::<AppState>(&json)
-            .context("Failed to parse application's data file")?
-    } else {
-        AppState::default()
+            Ok(serde_json::from_str::<AppState>(&json)
+                .context("Failed to parse application's data file")?)
+        } else {
+            Ok(AppState::default())
+        }
     };
 
-    let mut repositories = if repositories_file_path.exists() {
-        let json = fs::read_to_string(&repositories_file_path)
-            .context("Failed to read the repositories file")?;
+    let repositories = || -> Result<Repositories> {
+        if repositories_file_path.exists() {
+            let json = fs::read_to_string(&repositories_file_path)
+                .context("Failed to read the repositories file")?;
 
-        serde_json::from_str::<Repositories>(&json)
-            .context("Failed to parse the repositories file")?
-    } else {
-        Repositories::default()
+            Ok(serde_json::from_str::<Repositories>(&json)
+                .context("Failed to parse the repositories file")?)
+        } else {
+            Ok(Repositories::default())
+        }
     };
 
     match args.action {
@@ -104,6 +108,8 @@ fn inner() -> Result<()> {
         Action::Repos(action) => match action {
             ReposAction::Add(AddRepoArgs { file, ignore }) => {
                 let repo = fetch_repository(&RepositorySource::File(file.clone()))?;
+
+                let mut repositories = repositories()?;
 
                 let already_exists = repositories
                     .list
@@ -130,6 +136,8 @@ fn inner() -> Result<()> {
             }
 
             ReposAction::List => {
+                let repositories = repositories()?;
+
                 info!(
                     "There are {} registered repositories:\n",
                     repositories.list.len()
@@ -145,6 +153,8 @@ fn inner() -> Result<()> {
             }
 
             ReposAction::Update => {
+                let mut repositories = repositories()?;
+
                 let yellow_len = repositories.list.len().to_string().bright_yellow();
 
                 for (i, sourced) in repositories.list.iter_mut().enumerate() {
@@ -186,6 +196,9 @@ fn inner() -> Result<()> {
                 .transpose()
                 .context("Failed to parse provided glob pattern")?;
 
+            let repositories = repositories()?;
+            let app_state = app_state()?;
+
             let installable = repositories
                 .list
                 .iter()
@@ -212,6 +225,8 @@ fn inner() -> Result<()> {
             no_install,
             confirm,
         }) => {
+            let mut app_state = app_state()?;
+
             let missing = names
                 .iter()
                 .filter(|name| {
@@ -242,7 +257,7 @@ fn inner() -> Result<()> {
                 config_dir: &config_dir,
                 app_state: &mut app_state,
                 state_file_path: &state_file_path,
-                repositories: &repositories,
+                repositories: &repositories()?,
                 names: &names,
                 confirm,
                 ignore_installed: true,
@@ -251,6 +266,8 @@ fn inner() -> Result<()> {
         }
 
         Action::Install(InstallArgs { names }) => {
+            let repositories = repositories()?;
+
             if repositories.list.is_empty() {
                 bail!("No repository found, please register one.");
             }
@@ -258,7 +275,7 @@ fn inner() -> Result<()> {
             install_packages(InstallPackagesOptions {
                 bin_dir: &bin_dir,
                 config_dir: &config_dir,
-                app_state: &mut app_state,
+                app_state: &mut app_state()?,
                 state_file_path: &state_file_path,
                 repositories: &repositories,
                 names: &names,
@@ -269,6 +286,8 @@ fn inner() -> Result<()> {
         }
 
         Action::Installed(InstalledArgs { sort_by, rev_sort }) => {
+            let app_state = app_state()?;
+
             let mut installed: Vec<_> = app_state.installed.iter().collect();
 
             if installed.is_empty() {
@@ -314,6 +333,9 @@ fn inner() -> Result<()> {
         }
 
         Action::Update(UpdateArgs { names }) => {
+            let mut app_state = app_state()?;
+            let repositories = repositories()?;
+
             let result =
                 update_packages(&mut app_state, &repositories, &bin_dir, &config_dir, &names);
 
@@ -323,6 +345,8 @@ fn inner() -> Result<()> {
         }
 
         Action::Uninstall(UninstallArgs { name }) => {
+            let mut app_state = app_state()?;
+
             let index = app_state
                 .installed
                 .iter()
