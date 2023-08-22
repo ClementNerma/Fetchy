@@ -166,6 +166,15 @@ fn inner() -> Result<()> {
 
                 save_repositories(&repositories_file_path, &repositories)?;
             }
+
+            ReposAction::Validate(ValidateRepoFileArgs { file }) => {
+                let repo = fetch_repository(&RepositorySource::File(file.clone()))?;
+
+                success!(
+                    "Successfully validated repository file, containing {} packages.",
+                    repo.packages.len()
+                );
+            }
         },
 
         Action::Search(SearchArgs {

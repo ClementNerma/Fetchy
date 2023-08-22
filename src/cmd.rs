@@ -55,6 +55,9 @@ pub enum ReposAction {
 
     #[clap(about = "List registered repositories")]
     List,
+
+    #[clap(about = "Validate a standalone repository file, without adding it")]
+    Validate(ValidateRepoFileArgs),
 }
 
 #[derive(Args)]
@@ -75,6 +78,12 @@ pub struct AddRepoArgs {
 
 // #[derive(Args)]
 // pub struct ListReposArgs {}
+
+#[derive(Args)]
+pub struct ValidateRepoFileArgs {
+    #[clap(help = "Path to the file to validate")]
+    pub file: PathBuf,
+}
 
 #[derive(Args)]
 pub struct SearchArgs {
