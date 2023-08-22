@@ -1,15 +1,15 @@
 use anyhow::{bail, Context, Result};
-use reqwest::{Client, StatusCode};
+use reqwest::{blocking::Client, StatusCode};
 use serde::{Deserialize, Serialize};
 
 use crate::{fetcher::Asset, pattern::Pattern};
 
-pub async fn fetch_latest_release_asset(
+pub fn fetch_latest_release_asset(
     author: &str,
     repo_name: &str,
     asset_pattern: &Pattern,
 ) -> Result<Asset> {
-    let release = fetch_latest_release(author, repo_name).await?;
+    let release = fetch_latest_release(author, repo_name)?;
 
     if release.assets.is_empty() {
         bail!("No asset found in latest release in repo {author}/{repo_name}");
@@ -48,21 +48,20 @@ pub async fn fetch_latest_release_asset(
     })
 }
 
-async fn fetch_latest_release(author: &str, repo_name: &str) -> Result<GitHubRelease> {
+fn fetch_latest_release(author: &str, repo_name: &str) -> Result<GitHubRelease> {
     let resp = Client::new()
-        .get(&format!(
+        .get(format!(
             "https://api.github.com/repos/{author}/{repo_name}/releases/latest"
         ))
         .header(reqwest::header::USER_AGENT, "FetchyAppUserAgent")
         .send()
-        .await
         .with_context(|| {
             format!("Failed to fetch latest release of repo '{author}/{repo_name}'")
         })?;
 
     let status = resp.status();
 
-    let text = resp.text().await.with_context(|| {
+    let text = resp.text().with_context(|| {
         format!("Failed to fetch latest release of repo '{author}/{repo_name}' as text")
     })?;
 

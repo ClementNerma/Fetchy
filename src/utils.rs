@@ -1,20 +1,20 @@
-use std::path::{Path, PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use anyhow::{bail, Context, Result};
-use async_recursion::async_recursion;
-use tokio::fs;
 
 use crate::warn;
 
-#[async_recursion]
-pub async fn copy_dir(from: &Path, to: &Path) -> Result<()> {
+pub fn copy_dir(from: &Path, to: &Path) -> Result<()> {
     if !to.exists() {
-        fs::create_dir_all(&to).await?;
+        fs::create_dir_all(to)?;
     }
 
-    let mut dir_iter = fs::read_dir(&from).await?;
+    for entry in fs::read_dir(from)? {
+        let entry = entry?;
 
-    while let Some(entry) = dir_iter.next_entry().await? {
         let from = entry.path();
         let to = to.join(entry.file_name());
 
@@ -24,14 +24,14 @@ pub async fn copy_dir(from: &Path, to: &Path) -> Result<()> {
                 entry.path().to_string_lossy()
             );
         } else if from.is_dir() {
-            copy_dir(&from, &to).await.with_context(|| {
+            copy_dir(&from, &to).with_context(|| {
                 format!(
                     "Failed to extract directory '{}'",
                     entry.file_name().to_string_lossy()
                 )
             })?;
         } else if from.is_file() {
-            fs::copy(&from, &to).await.with_context(|| {
+            fs::copy(&from, &to).with_context(|| {
                 format!(
                     "Failed to copy file '{}'",
                     entry.file_name().to_string_lossy()
@@ -48,14 +48,11 @@ pub async fn copy_dir(from: &Path, to: &Path) -> Result<()> {
     Ok(())
 }
 
-#[async_recursion]
-pub async fn read_dir_tree(dir: &Path) -> Result<Vec<PathBuf>> {
+pub fn read_dir_tree(dir: &Path) -> Result<Vec<PathBuf>> {
     let mut out = vec![];
 
-    let mut dir_iter = fs::read_dir(&dir).await?;
-
-    while let Some(entry) = dir_iter.next_entry().await? {
-        let path = entry.path();
+    for entry in fs::read_dir(dir)? {
+        let path = entry?.path();
 
         if path.is_symlink() {
             warn!("> Ignoring symbolic link '{}'", path.to_string_lossy());
@@ -63,7 +60,7 @@ pub async fn read_dir_tree(dir: &Path) -> Result<Vec<PathBuf>> {
         }
 
         if path.is_dir() {
-            let sub = read_dir_tree(&path).await.with_context(|| {
+            let sub = read_dir_tree(&path).with_context(|| {
                 format!(
                     "Failed to list content of directory '{:?}'",
                     path.file_name()

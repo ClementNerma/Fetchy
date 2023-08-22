@@ -1,4 +1,5 @@
 use std::{
+    fs,
     path::{Path, PathBuf},
     time::SystemTime,
 };
@@ -7,7 +8,6 @@ use anyhow::{bail, Context, Result};
 use colored::Colorize;
 use dialoguer::Select;
 use tempfile::TempDir;
-use tokio::fs;
 
 use crate::{
     app_data::{AppState, InstalledPackage, Repositories},
@@ -22,7 +22,7 @@ use crate::{
     utils::{copy_dir, read_dir_tree},
 };
 
-pub struct InstallPackageOptions<'a, 'b, 'c, 'd, 'e> {
+pub struct InstallPackageOptions<'a, 'b, 'c, 'd> {
     pub pkg: &'a Package,
     pub dl_file_path: PathBuf,
     pub tmp_dir: TempDir,
@@ -30,12 +30,9 @@ pub struct InstallPackageOptions<'a, 'b, 'c, 'd, 'e> {
     pub config_dir: &'c Path,
     pub repo_name: &'d str,
     pub version: String,
-    pub on_message: &'e dyn Fn(&str),
 }
 
-pub async fn install_package(
-    options: InstallPackageOptions<'_, '_, '_, '_, '_>,
-) -> Result<InstalledPackage> {
+pub fn install_package(options: InstallPackageOptions<'_, '_, '_, '_>) -> Result<InstalledPackage> {
     let InstallPackageOptions {
         pkg,
         dl_file_path,
@@ -44,7 +41,6 @@ pub async fn install_package(
         config_dir,
         repo_name,
         version,
-        on_message,
     } = options;
 
     let items_to_copy = match &pkg.download.file_format {
@@ -57,18 +53,15 @@ pub async fn install_package(
         FileFormat::Archive { format, files } => {
             let extraction_path = tmp_dir.path().join("archive");
 
-            fs::create_dir(&extraction_path)
-                .await
-                .context("Failed to create a temporary directory")?;
+            fs::create_dir(&extraction_path).context("Failed to create a temporary directory")?;
 
-            extract_archive(dl_file_path, format, extraction_path.clone()).await?;
+            extract_archive(dl_file_path, format, extraction_path.clone())?;
 
             let mut out = Vec::with_capacity(files.len());
             let mut treated = vec![None; files.len()];
 
-            let extracted = read_dir_tree(&extraction_path)
-                .await
-                .context("Failed to list extracted items")?;
+            let extracted =
+                read_dir_tree(&extraction_path).context("Failed to list extracted items")?;
 
             let mut archive_files = vec![];
 
@@ -125,13 +118,17 @@ pub async fn install_package(
     };
 
     for item in &items_to_copy {
-        on_message(&match &item.file_type {
-            AssetFileType::Binary { copy_as } => format!("Copying binary: {copy_as}..."),
-            AssetFileType::ConfigDir => format!("Copying configuration directory: {}...", pkg.name),
-            AssetFileType::ConfigSubDir { copy_as } => {
-                format!("Copying configuration sub-directory: {copy_as}...")
+        println!(
+            "{}",
+            match &item.file_type {
+                AssetFileType::Binary { copy_as } => format!("Copying binary: {copy_as}..."),
+                AssetFileType::ConfigDir =>
+                    format!("Copying configuration directory: {}...", pkg.name),
+                AssetFileType::ConfigSubDir { copy_as } => {
+                    format!("Copying configuration sub-directory: {copy_as}...")
+                }
             }
-        });
+        );
 
         let (out_path, is_dir) = match &item.file_type {
             AssetFileType::Binary { copy_as } => (bin_dir.join(copy_as), false),
@@ -142,25 +139,22 @@ pub async fn install_package(
         };
 
         if !is_dir {
-            fs::copy(&item.extracted_path, &out_path)
-                .await
-                .with_context(|| {
-                    format!(
-                        "Failed to copy file '{}' to the binaries directory",
-                        out_path.file_name().unwrap().to_string_lossy()
-                    )
-                })?;
+            fs::copy(&item.extracted_path, &out_path).with_context(|| {
+                format!(
+                    "Failed to copy file '{}' to the binaries directory",
+                    out_path.file_name().unwrap().to_string_lossy()
+                )
+            })?;
 
             #[cfg(target_family = "unix")]
             {
                 use std::os::unix::fs::PermissionsExt;
 
                 fs::set_permissions(&out_path, std::fs::Permissions::from_mode(0o755))
-                    .await
                     .context("Failed to write file's new metadata (updated permissions)")?;
             }
         } else {
-            copy_dir(&item.extracted_path, &out_path).await?;
+            copy_dir(&item.extracted_path, &out_path)?;
         }
     }
 
@@ -191,7 +185,7 @@ pub struct InstallPackagesOptions<'a, 'b, 'c, 'd, 'e, 'f> {
     pub quiet: bool,
 }
 
-pub async fn install_packages(
+pub fn install_packages(
     InstallPackagesOptions {
         bin_dir,
         config_dir,
@@ -277,7 +271,7 @@ pub async fn install_packages(
             yellow_len,
         );
 
-        let asset_infos = match fetch_package_asset_infos(pkg).await {
+        let asset_infos = match fetch_package_asset_infos(pkg) {
             Ok(data) => data,
             Err(err) => {
                 error_anyhow!(err);
@@ -292,10 +286,8 @@ pub async fn install_packages(
             asset_infos,
             bin_dir,
             config_dir,
-            &progress_bar_tracker(),
-        )
-        .await
-        {
+            progress_bar_tracker(),
+        ) {
             Ok(data) => data,
             Err(err) => {
                 error_anyhow!(err);
@@ -326,7 +318,7 @@ pub async fn install_packages(
 
         println!();
 
-        save_app_state(state_file_path, app_state).await?;
+        save_app_state(state_file_path, app_state)?;
     }
 
     if failed > 0 {
@@ -336,7 +328,7 @@ pub async fn install_packages(
     Ok(())
 }
 
-pub async fn update_packages(
+pub fn update_packages(
     app_state: &mut AppState,
     repositories: &Repositories,
     bin_dir: &Path,
@@ -388,7 +380,7 @@ pub async fn update_packages(
                 continue;
             };
 
-        let asset_infos = match fetch_package_asset_infos(pkg).await {
+        let asset_infos = match fetch_package_asset_infos(pkg) {
             Ok(data) => data,
             Err(err) => {
                 error_anyhow!(err);
@@ -413,10 +405,8 @@ pub async fn update_packages(
             asset_infos,
             bin_dir,
             config_dir,
-            &progress_bar_tracker(),
-        )
-        .await
-        {
+            progress_bar_tracker(),
+        ) {
             Ok(data) => data,
             Err(err) => {
                 error_anyhow!(err);

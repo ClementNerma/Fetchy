@@ -1,23 +1,22 @@
 #![forbid(unsafe_code)]
 #![forbid(unused_must_use)]
-#![forbid(unused_crate_dependencies)]
+#![warn(unused_crate_dependencies)]
 
 use glob::Pattern;
+use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use openssl_sys as _;
 
-use std::{fmt::Write, path::Path, sync::atomic::Ordering};
+use std::{fmt::Write, fs, path::Path, sync::atomic::Ordering};
 
 use anyhow::{bail, Context, Result};
 use app_data::{AppState, InstalledPackage, Repositories, RepositorySource, SourcedRepository};
 use clap::Parser;
 use cmd::*;
 use colored::Colorize;
-use fetcher::{fetch_repository, FetchProgressTracking};
-use indicatif::{ProgressBar, ProgressState, ProgressStyle};
+use fetcher::fetch_repository;
 use installer::{update_packages, InstallPackagesOptions};
 use logging::PRINT_DEBUG_MESSAGES;
 use repository::Package;
-use tokio::fs;
 
 use crate::installer::install_packages;
 
@@ -34,9 +33,8 @@ mod selector;
 mod sources;
 mod utils;
 
-#[tokio::main]
-async fn main() {
-    if let Err(err) = inner().await {
+fn main() {
+    if let Err(err) = inner() {
         error!("{}", err.chain().next().unwrap());
 
         for error in err.chain().skip(1) {
@@ -47,7 +45,7 @@ async fn main() {
     }
 }
 
-async fn inner() -> Result<()> {
+fn inner() -> Result<()> {
     let args = Cmd::parse();
 
     if args.verbose {
@@ -60,7 +58,6 @@ async fn inner() -> Result<()> {
 
     if !app_data_dir.exists() {
         fs::create_dir_all(&app_data_dir)
-            .await
             .context("Failed to create the application's data directory")?;
     }
 
@@ -71,14 +68,11 @@ async fn inner() -> Result<()> {
     let repositories_file_path = app_data_dir.join("repositories.json");
 
     if !bin_dir.exists() {
-        fs::create_dir(&bin_dir)
-            .await
-            .context("Failed to create the binaries directory")?;
+        fs::create_dir(&bin_dir).context("Failed to create the binaries directory")?;
     }
 
     let mut app_state = if state_file_path.exists() {
         let json = fs::read_to_string(&state_file_path)
-            .await
             .context("Failed to read application's data file")?;
 
         serde_json::from_str::<AppState>(&json)
@@ -89,7 +83,6 @@ async fn inner() -> Result<()> {
 
     let mut repositories = if repositories_file_path.exists() {
         let json = fs::read_to_string(&repositories_file_path)
-            .await
             .context("Failed to read the repositories file")?;
 
         serde_json::from_str::<Repositories>(&json)
@@ -110,7 +103,7 @@ async fn inner() -> Result<()> {
 
         Action::Repos(action) => match action {
             ReposAction::Add(AddRepoArgs { file, ignore }) => {
-                let repo = fetch_repository(&RepositorySource::File(file.clone())).await?;
+                let repo = fetch_repository(&RepositorySource::File(file.clone()))?;
 
                 let already_exists = repositories
                     .list
@@ -132,7 +125,7 @@ async fn inner() -> Result<()> {
 
                     success!("Successfully added the repository!");
 
-                    save_repositories(&repositories_file_path, &repositories).await?;
+                    save_repositories(&repositories_file_path, &repositories)?;
                 }
             }
 
@@ -164,14 +157,14 @@ async fn inner() -> Result<()> {
                         );
                     }
 
-                    sourced.content = fetch_repository(&sourced.source).await?;
+                    sourced.content = fetch_repository(&sourced.source)?;
                 }
 
                 if !args.quiet {
                     success!("Successfully updated all repositories!");
                 }
 
-                save_repositories(&repositories_file_path, &repositories).await?;
+                save_repositories(&repositories_file_path, &repositories)?;
             }
         },
 
@@ -245,8 +238,7 @@ async fn inner() -> Result<()> {
                 confirm,
                 ignore_installed: true,
                 quiet: args.quiet,
-            })
-            .await?;
+            })?;
         }
 
         Action::Install(InstallArgs { names }) => {
@@ -264,8 +256,7 @@ async fn inner() -> Result<()> {
                 confirm: false,
                 ignore_installed: false,
                 quiet: args.quiet,
-            })
-            .await?;
+            })?;
         }
 
         Action::Installed(InstalledArgs { sort_by, rev_sort }) => {
@@ -315,9 +306,9 @@ async fn inner() -> Result<()> {
 
         Action::Update(UpdateArgs { names }) => {
             let result =
-                update_packages(&mut app_state, &repositories, &bin_dir, &config_dir, &names).await;
+                update_packages(&mut app_state, &repositories, &bin_dir, &config_dir, &names);
 
-            save_app_state(&state_file_path, &app_state).await?;
+            save_app_state(&state_file_path, &app_state)?;
 
             result?;
         }
@@ -331,13 +322,12 @@ async fn inner() -> Result<()> {
 
             for file in &app_state.installed[index].binaries {
                 fs::remove_file(bin_dir.join(file))
-                    .await
                     .with_context(|| format!("Failed to remove binary '{file}'"))?;
             }
 
             app_state.installed.remove(index);
 
-            save_app_state(&state_file_path, &app_state).await?;
+            save_app_state(&state_file_path, &app_state)?;
 
             success!(
                 "Successfully uninstalled package '{}'",
@@ -366,55 +356,35 @@ fn find_matching_packages<'a>(
         .collect()
 }
 
-fn progress_bar_tracker() -> FetchProgressTracking {
-    let pb = Box::leak(Box::new(
-        ProgressBar::new(0)
-            .with_style(
-                ProgressStyle::with_template(
-                    "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})",
-                )
-                .unwrap()
-                .with_key("eta", |state: &ProgressState, w: &mut dyn Write| {
-                    write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap()
-                })
-                .progress_chars("#>-")
-            )
-        ));
-
-    FetchProgressTracking {
-        on_message: Box::new(|_| {}),
-        on_dl_progress: Box::new(|a, b| {
-            if let Some(b) = b {
-                pb.set_length(b);
-            }
-
-            pb.set_position(a as u64);
-        }),
-        on_finish: Box::new(|| pb.finish()),
-    }
-}
-
-async fn save_app_state(state_file_path: &Path, app_state: &AppState) -> Result<()> {
+fn save_app_state(state_file_path: &Path, app_state: &AppState) -> Result<()> {
     debug!("Application's state changed, flushing to disk.");
 
     let app_data_str =
         serde_json::to_string(app_state).context("Failed to serialize application's data")?;
 
-    fs::write(&state_file_path, &app_data_str)
-        .await
-        .context("Failed to write application's data to disk")
+    fs::write(state_file_path, app_data_str).context("Failed to write application's data to disk")
 }
 
-async fn save_repositories(
-    repositories_file_path: &Path,
-    repositories: &Repositories,
-) -> Result<()> {
+fn save_repositories(repositories_file_path: &Path, repositories: &Repositories) -> Result<()> {
     debug!("Repositories changed, flushing to disk.");
 
     let repositories_str =
         serde_json::to_string(repositories).context("Failed to serialize the repositories")?;
 
-    fs::write(&repositories_file_path, &repositories_str)
-        .await
+    fs::write(repositories_file_path, repositories_str)
         .context("Failed to write the repositories to disk")
+}
+
+pub fn progress_bar_tracker() -> ProgressBar {
+    ProgressBar::new(0)
+    .with_style(
+        ProgressStyle::with_template(
+            "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})",
+        )
+        .unwrap()
+        .with_key("eta", |state: &ProgressState, w: &mut dyn Write| {
+            write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap()
+        })
+        .progress_chars("#>-")
+    )
 }

@@ -1,17 +1,18 @@
-use std::path::{Path, PathBuf};
-
-use anyhow::{Context, Result};
-use async_compression::tokio::write::{GzipDecoder, XzDecoder};
-use tar::Archive;
-use tokio::{
+use std::{
     fs::{self, File},
     io,
+    path::{Path, PathBuf},
 };
+
+use anyhow::{Context, Result};
+use flate2::read::GzDecoder;
+use tar::Archive;
+use xz2::read::XzDecoder;
 use zip::ZipArchive;
 
 use crate::repository::ArchiveFormat;
 
-pub async fn extract_archive(
+pub fn extract_archive(
     archive_path: PathBuf,
     format: &ArchiveFormat,
     extract_to: PathBuf,
@@ -21,39 +22,31 @@ pub async fn extract_archive(
             let tar_file_path = extract_to.join("tarball.tmp");
 
             let mut tar_file = File::create(&tar_file_path)
-                .await
                 .context("Failed to create a temporary file for tarball extraction")?;
 
-            let mut dl_file = File::open(&archive_path)
-                .await
-                .context("Failed to open downloaded file")?;
+            let dl_file = File::open(&archive_path).context("Failed to open downloaded file")?;
 
-            if *format == ArchiveFormat::TarGz {
-                io::copy(&mut dl_file, &mut GzipDecoder::new(&mut tar_file))
-                    .await
-                    .context("Failed to decompress GZip archive")?
-            } else {
-                io::copy(&mut dl_file, &mut XzDecoder::new(&mut tar_file))
-                    .await
-                    .context("Failed to decompress Xz archive")?
-            };
+            match *format {
+                ArchiveFormat::TarGz => {
+                    io::copy(&mut GzDecoder::new(dl_file), &mut tar_file)
+                        .context("Failed to decompress GZip archive")?;
+                }
+                ArchiveFormat::TarXz => {
+                    io::copy(&mut XzDecoder::new(dl_file), &mut tar_file)
+                        .context("Failed to decompress Xz archive")?;
+                }
+                ArchiveFormat::Zip => unreachable!(),
+            }
 
-            let tar_file_path_dup = tar_file_path.clone();
-
-            tokio::spawn(async move { extract_tar_sync(&tar_file_path_dup, &extract_to) })
-                .await
-                .context("Failed to run TAR decompression task")?
+            extract_tar_sync(&tar_file_path, &extract_to)
                 .context("Failed to extract TAR archive")?;
 
             fs::remove_file(tar_file_path)
-                .await
                 .context("Failed to remove the temporary tarball file")?;
         }
 
         ArchiveFormat::Zip => {
-            tokio::spawn(async move { extract_zip_sync(&archive_path, &extract_to) })
-                .await
-                .context("Failed to run ZIP decompression task")?
+            extract_zip_sync(&archive_path, &extract_to)
                 .context("Failed to extract ZIP archive")?;
         }
     }
@@ -62,8 +55,6 @@ pub async fn extract_archive(
 }
 
 fn extract_zip_sync(zip_path: &Path, extract_to: &Path) -> Result<()> {
-    use std::fs::File;
-
     let file = File::open(zip_path).context("Failed to open ZIP file")?;
 
     let mut zip = ZipArchive::new(file).unwrap();
@@ -75,8 +66,6 @@ fn extract_zip_sync(zip_path: &Path, extract_to: &Path) -> Result<()> {
 }
 
 fn extract_tar_sync(tar_path: &Path, extract_to: &Path) -> Result<()> {
-    use std::fs::File;
-
     let tar_file = File::open(tar_path).context("Failed to open the tarball archive")?;
 
     let mut tarball = Archive::new(tar_file);
