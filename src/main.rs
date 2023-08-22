@@ -321,10 +321,14 @@ fn inner() -> Result<()> {
                     "*".bright_yellow(),
                     format!("{pkg_name:largest_pkg_name$}").bright_cyan(),
                     format!("{version:largest_pkg_version$}").bright_yellow(),
-                    format!("[{repo_name:largest_pkg_repo_name$}]").bright_magenta(),
+                    format!("{repo_name:largest_pkg_repo_name$}").bright_magenta(),
                 );
 
-                for bin in binaries {
+                for (i, bin) in binaries.iter().enumerate() {
+                    if i > 0 {
+                        print!(", ");
+                    }
+
                     print!("{}", bin.bright_green().underline());
                 }
 
