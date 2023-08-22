@@ -6,6 +6,7 @@ use serde::{de::Error, Deserialize, Deserializer, Serialize};
 use crate::{arch::PlatformDependent, pattern::Pattern};
 
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Repository {
     #[serde(deserialize_with = "deserialize_name")]
     pub name: String,
@@ -14,6 +15,7 @@ pub struct Repository {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Package {
     #[serde(deserialize_with = "deserialize_name")]
     pub name: String,
@@ -21,6 +23,7 @@ pub struct Package {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PackageDownload {
     pub source: DownloadSource,
     pub file_format: FileFormat,
@@ -29,6 +32,7 @@ pub struct PackageDownload {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum DownloadSource {
     Direct {
         url: PlatformDependent<String>,
@@ -41,6 +45,7 @@ pub enum DownloadSource {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum FileFormat {
     Binary {
         #[serde(deserialize_with = "deserialize_filename")]
@@ -60,6 +65,7 @@ pub enum ArchiveFormat {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum VersionExtraction {
     Url { regex: Pattern },
     ReleaseTitle { regex: Option<Pattern> },
@@ -69,6 +75,7 @@ pub enum VersionExtraction {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FileExtraction {
     pub relative_path: Pattern,
     pub file_type: AssetFileType,
