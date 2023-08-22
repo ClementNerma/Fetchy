@@ -65,7 +65,7 @@ pub enum VersionExtraction {
     ReleaseTitle { regex: Option<Pattern> },
     TagName { regex: Option<Pattern> },
     DownloadedFileName { regex: Pattern },
-    Hardcoded { version: String },
+    Hardcoded(String),
 }
 
 #[derive(Serialize, Deserialize)]

@@ -54,7 +54,7 @@ pub fn fetch_package_asset_infos(pkg: &Package) -> Result<FetchedPackageAssetInf
         VersionExtraction::DownloadedFileName { regex } => {
             (filename.as_ref(), Some(regex), "downloaded file name")
         }
-        VersionExtraction::Hardcoded { version } => (Some(version), None, "version"),
+        VersionExtraction::Hardcoded(version) => (Some(version), None, "version"),
     };
 
     let match_on = match_on.with_context(|| format!("No {nature} was found"))?;
