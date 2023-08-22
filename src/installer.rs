@@ -12,7 +12,7 @@ use tempfile::TempDir;
 use crate::{
     app_data::{AppState, InstalledPackage, Repositories},
     archives::extract_archive,
-    error, error_anyhow,
+    debug, error, error_anyhow,
     fetcher::{fetch_package, fetch_package_asset_infos},
     find_matching_packages, info, progress_bar_tracker,
     repository::{AssetFileType, FileFormat, Package},
@@ -42,6 +42,8 @@ pub fn install_package(options: InstallPackageOptions<'_, '_, '_, '_>) -> Result
         repo_name,
         version,
     } = options;
+
+    debug!("Installing package {repo_name}/{}", pkg.name);
 
     let items_to_copy = match &pkg.download.file_format {
         FileFormat::Binary { filename } => vec![ItemToCopy {
@@ -117,6 +119,8 @@ pub fn install_package(options: InstallPackageOptions<'_, '_, '_, '_>) -> Result
         }
     };
 
+    debug!("Copying {} items...", items_to_copy.len());
+
     for item in &items_to_copy {
         println!(
             "{}",
@@ -150,10 +154,13 @@ pub fn install_package(options: InstallPackageOptions<'_, '_, '_, '_>) -> Result
             {
                 use std::os::unix::fs::PermissionsExt;
 
+                debug!("Setting file permissions...");
+
                 fs::set_permissions(&out_path, std::fs::Permissions::from_mode(0o755))
                     .context("Failed to write file's new metadata (updated permissions)")?;
             }
         } else {
+            // TODO: show progress bar
             copy_dir(&item.extracted_path, &out_path)?;
         }
     }

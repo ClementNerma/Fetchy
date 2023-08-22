@@ -10,13 +10,19 @@ use tar::Archive;
 use xz2::read::XzDecoder;
 use zip::ZipArchive;
 
-use crate::repository::ArchiveFormat;
+use crate::{debug, repository::ArchiveFormat};
 
 pub fn extract_archive(
     archive_path: PathBuf,
     format: &ArchiveFormat,
     extract_to: PathBuf,
 ) -> Result<()> {
+    debug!(
+        "Extracting archive from {} to {}...",
+        archive_path.to_string_lossy().bright_magenta(),
+        extract_to.to_string_lossy().bright_magenta()
+    );
+
     match format {
         ArchiveFormat::TarGz | ArchiveFormat::TarXz => {
             let tar_file_path = extract_to.join("tarball.tmp");

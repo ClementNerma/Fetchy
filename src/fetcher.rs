@@ -11,6 +11,7 @@ use regex::Regex;
 
 use crate::{
     app_data::{InstalledPackage, RepositorySource},
+    debug,
     installer::{install_package, InstallPackageOptions},
     repository::{DownloadSource, Package, Repository, VersionExtraction},
     sources::*,
@@ -99,7 +100,7 @@ pub fn fetch_package(
     config_dir: &Path,
     pb: ProgressBar,
 ) -> Result<InstalledPackage> {
-    println!("Downloading asset from URL: {url}...");
+    debug!("Downloading asset from URL: {}...", url.bright_cyan());
 
     let tmp_dir = tempfile::tempdir().context("Failed to create a temporary file")?;
 
