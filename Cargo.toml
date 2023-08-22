@@ -1,5 +1,5 @@
 [package]
-name = "fetchy-pkgs"
+name = "fetchy"
 version = "0.5.0"
 edition = "2021"
 description = "Quick packages installer"
