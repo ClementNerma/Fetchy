@@ -76,7 +76,7 @@ macro_rules! notice {
 #[macro_export]
 macro_rules! debug {
     ($message: tt, $($params: tt)*) => {{
-        if $crate::logging::PRINT_DEBUG_MESSAGES.load(::std::sync::atomic::Ordering::Relaxed) {
+        if $crate::logging::PRINT_DEBUG_MESSAGES.load(::std::sync::atomic::Ordering::Acquire) {
             println!("{}", $crate::_format!(bright_black => $message, $($params)*));
         }
     }};
