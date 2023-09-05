@@ -124,7 +124,7 @@ pub fn install_package(options: InstallPackageOptions<'_, '_, '_, '_>) -> Result
     debug!("Copying {} items...", items_to_copy.len());
 
     for item in &items_to_copy {
-        println!(
+        debug!(
             "{}",
             match &item.file_type {
                 AssetFileType::Binary { copy_as } => format!("Copying binary: {copy_as}..."),
