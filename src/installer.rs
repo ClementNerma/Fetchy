@@ -78,7 +78,9 @@ pub fn install_package(options: InstallPackageOptions<'_, '_, '_, '_>) -> Result
 
                 archive_files.push(path.to_string_lossy().to_string());
 
-                let Some(path_str) = path.to_str() else { continue };
+                let Some(path_str) = path.to_str() else {
+                    continue;
+                };
 
                 for (i, file) in files.iter().enumerate() {
                     if !file.relative_path.regex.is_match(path_str) {
@@ -86,7 +88,7 @@ pub fn install_package(options: InstallPackageOptions<'_, '_, '_, '_>) -> Result
                     }
 
                     if let Some(prev) = &treated[i] {
-                        bail!("Multiple entries matched the file regex ({}) in the archive:\n* {}\n* {}",
+                        bail!("Found at least two entries matching the file regex ({}) in the archive:\n* {}\n* {}",
                             file.relative_path.source,
                             prev,
                             path_str
@@ -378,14 +380,15 @@ pub fn update_packages(
             .content
             .packages
             .iter()
-            .find(|candidate| candidate.name == installed.pkg_name) else {
-                info!(
-                    " |> Package {} is installed {}\n",
-                    installed.pkg_name.bright_blue(),
-                    "but does not seem to exist anymore in this repository".bright_yellow()
-                );
-                continue;
-            };
+            .find(|candidate| candidate.name == installed.pkg_name)
+        else {
+            info!(
+                " |> Package {} is installed {}\n",
+                installed.pkg_name.bright_blue(),
+                "but does not seem to exist anymore in this repository".bright_yellow()
+            );
+            continue;
+        };
 
         let asset_infos = match fetch_package_asset_infos(pkg) {
             Ok(data) => data,
