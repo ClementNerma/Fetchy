@@ -33,7 +33,3 @@ tempfile = "3.8.0"
 unicode-width = "0.1.10"
 xz2 = "0.1.7"
 zip = "0.6.6"
-
-[profile.dist]
-inherits = "release"
-lto = "thin"
