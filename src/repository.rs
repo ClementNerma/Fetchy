@@ -49,7 +49,7 @@ pub enum DownloadSource {
 pub enum FileFormat {
     Binary {
         #[serde(deserialize_with = "deserialize_filename")]
-        filename: String,
+        copy_as: String,
     },
     Archive {
         format: ArchiveFormat,

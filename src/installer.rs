@@ -46,7 +46,7 @@ pub fn install_package(options: InstallPackageOptions<'_, '_, '_, '_>) -> Result
     debug!("Installing package {repo_name}/{}", pkg.name);
 
     let items_to_copy = match &pkg.download.file_format {
-        FileFormat::Binary { filename } => vec![ItemToCopy {
+        FileFormat::Binary { copy_as: filename } => vec![ItemToCopy {
             extracted_path: dl_file_path,
             file_type: AssetFileType::Binary {
                 copy_as: filename.clone(),
