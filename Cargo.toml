@@ -6,10 +6,6 @@ description = "Quick packages installer"
 license = "Apache-2.0"
 repository = "https://github.com/ClementNerma/Fetchy"
 
-[[bin]]
-name = "fetchy"
-path = "src/main.rs"
-
 [dependencies]
 anyhow = "1.0.75"
 clap = { version = "4.4.4", features = ["derive"] }
