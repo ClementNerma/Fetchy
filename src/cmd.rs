@@ -137,7 +137,7 @@ pub struct UpdateArgs {
     #[clap(help = "List of packages to update (all if none provided)")]
     pub names: Vec<String>,
 
-    #[clap(help = "Force update even if no update was detected")]
+    #[clap(short, long, help = "Force update even if no update was detected")]
     pub force: bool,
 }
 
