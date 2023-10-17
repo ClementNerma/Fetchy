@@ -350,6 +350,7 @@ pub fn update_packages(
     bin_dir: &Path,
     config_dir: &Path,
     names: &[String],
+    force: bool,
 ) -> Result<()> {
     let mut to_update = find_installed_packages(app_state, names)?;
     to_update.sort_by(|a, b| a.pkg_name.cmp(&b.pkg_name));
@@ -407,11 +408,16 @@ pub fn update_packages(
         };
 
         if asset_infos.version == installed.version {
-            info!(
-                " |> Package is already up-to-date (version {}), skipping.\n",
-                installed.version.bright_yellow()
-            );
-            continue;
+            if !force {
+                info!(
+                    " |> Package is already up-to-date (version {}), skipping.\n",
+                    installed.version.bright_yellow()
+                );
+
+                continue;
+            }
+
+            info!("|> Package is already up-to-date, reinstalling anyway as requested...");
         }
 
         info!(

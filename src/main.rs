@@ -336,12 +336,18 @@ fn inner() -> Result<()> {
             }
         }
 
-        Action::Update(UpdateArgs { names }) => {
+        Action::Update(UpdateArgs { names, force }) => {
             let mut app_state = app_state()?;
             let repositories = repositories()?;
 
-            let result =
-                update_packages(&mut app_state, &repositories, &bin_dir, &config_dir, &names);
+            let result = update_packages(
+                &mut app_state,
+                &repositories,
+                &bin_dir,
+                &config_dir,
+                &names,
+                force,
+            );
 
             save_app_state(&state_file_path, &app_state)?;
 
