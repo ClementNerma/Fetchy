@@ -407,7 +407,11 @@ pub fn update_packages(
             continue;
         }
 
-        let prev_version = installed.version.clone();
+        info!(
+            "|> Updating from version {} to version {}...",
+            installed.version.bright_yellow(),
+            asset_infos.version.bright_yellow(),
+        );
 
         *installed = match fetch_package(
             pkg,
@@ -425,11 +429,7 @@ pub fn update_packages(
             }
         };
 
-        info!(
-            " |> Updated package from version {} to {}.",
-            prev_version.bright_yellow(),
-            installed.version.bright_yellow(),
-        );
+        info!(" |> Success.",);
 
         println!();
     }
