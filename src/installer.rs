@@ -417,14 +417,17 @@ pub fn update_packages(
                 continue;
             }
 
-            info!("|> Package is already up-to-date, reinstalling anyway as requested...");
+            info!(
+                "|> Package is already up-to-date ({}), reinstalling anyway as requested...",
+                installed.version.bright_yellow()
+            );
+        } else {
+            info!(
+                "|> Updating from version {} to version {}...",
+                installed.version.bright_yellow(),
+                asset_infos.version.bright_yellow(),
+            );
         }
-
-        info!(
-            "|> Updating from version {} to version {}...",
-            installed.version.bright_yellow(),
-            asset_infos.version.bright_yellow(),
-        );
 
         *installed = match fetch_package(
             pkg,
