@@ -306,22 +306,15 @@ pub fn install_packages(
         };
 
         info!(
-            "  |> Installed package version {} - deployed {}",
+            "  |> Installed package version {} - deployed {} {}",
             installed.version.bright_yellow(),
             if installed.binaries.len() > 1 {
                 "binaries"
             } else {
                 "binary"
-            }
+            },
+            installed.binaries.join(", ").bright_green().underline()
         );
-
-        for (i, bin) in installed.binaries.iter().enumerate() {
-            if i > 0 {
-                print!(", ");
-            }
-
-            print!("{}", bin.bright_green().underline());
-        }
 
         let existing_index = app_state.installed.iter().position(|installed| {
             installed.repo_name == repo.content.name && installed.pkg_name == pkg.name
