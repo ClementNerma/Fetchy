@@ -13,7 +13,7 @@ use crate::{
     },
 };
 
-// TODO: validate filenames
+// TODO: validate filenames (and sanitize package names)
 
 pub fn repository() -> impl Parser<Repository> {
     let ms = whitespaces().no_newline();
@@ -48,10 +48,20 @@ pub fn repository() -> impl Parser<Repository> {
         .then_ignore(char(':').critical_expectation())
         .then(cpu_arch);
 
-    let file_nature = choice::<_, FileNature>((just("binary")
-        .ignore_then(s)
-        .ignore_then(string.clone().critical("expected a binary filename"))
-        .map(|copy_as| FileNature::Binary { copy_as }),));
+    let file_nature = choice::<_, FileNature>((
+        just("binary")
+            .ignore_then(s)
+            .ignore_then(string.clone().critical("expected a binary filename"))
+            .map(|copy_as| FileNature::Binary { copy_as }),
+        just("library")
+            .ignore_then(s)
+            .ignore_then(string.clone().critical("expected a library filename"))
+            .map(|name| FileNature::Library { name }),
+        just("isolated_dir")
+            .ignore_then(s)
+            .ignore_then(string.clone().critical("expected a filename"))
+            .map(|name| FileNature::IsolatedDir { name }),
+    ));
 
     let pattern = string.clone().try_map(|string| Pattern::parse(&string));
 

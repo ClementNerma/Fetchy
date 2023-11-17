@@ -14,21 +14,21 @@ use crate::{
     archives::extract_archive,
     debug, error, error_anyhow,
     fetcher::{fetch_package, fetch_package_asset_infos},
-    find_matching_packages, info, progress_bar_tracker,
+    find_matching_packages, info,
     repository::{FileExtraction, FileNature, Package},
     save_app_state,
     selector::find_installed_packages,
     success,
-    utils::{copy_dir, read_dir_tree},
+    utils::{copy_dir, progress_bar_tracker, read_dir_tree},
 };
 
-pub struct InstallPackageOptions<'a, 'b, 'c> {
+pub struct InstallPackageOptions<'a, 'b, 'c, 'd> {
     pub pkg: &'a Package,
     pub dl_file_path: PathBuf,
     pub tmp_dir: TempDir,
     pub bin_dir: &'b Path,
-    // pub config_dir: &'c Path,
-    pub repo_name: &'c str,
+    pub isolated_dir: &'c Path,
+    pub repo_name: &'d str,
     pub version: String,
     pub extraction: FileExtraction,
 }
@@ -39,6 +39,7 @@ pub fn install_package(options: InstallPackageOptions) -> Result<InstalledPackag
         dl_file_path,
         tmp_dir,
         bin_dir,
+        isolated_dir,
         repo_name,
         version,
         extraction,
@@ -129,20 +130,16 @@ pub fn install_package(options: InstallPackageOptions) -> Result<InstalledPackag
             "{}",
             match &item.file_type {
                 FileNature::Binary { copy_as } => format!("Copying binary: {copy_as}..."),
-                // FileNature::ConfigDir =>
-                //     format!("Copying configuration directory: {}...", pkg.name),
-                // AssetFileType::ConfigSubDir { copy_as } => {
-                //     format!("Copying configuration sub-directory: {copy_as}...")
-                // }
+                FileNature::Library { name } => format!("Copying library: {name}..."),
+                FileNature::IsolatedDir { name } =>
+                    format!("Copying isolated directory '{name}'..."),
             }
         );
 
         let (out_path, is_dir) = match &item.file_type {
             FileNature::Binary { copy_as } => (bin_dir.join(copy_as), false),
-            // FileNature::ConfigDir => (config_dir.join(&pkg.name), true),
-            // AssetFileType::ConfigSubDir { copy_as } => {
-            //     (config_dir.join(&pkg.name).join(copy_as), true)
-            // }
+            FileNature::Library { name } => (bin_dir.join(name), false),
+            FileNature::IsolatedDir { name } => (isolated_dir.join(&pkg.name).join(name), true),
         };
 
         if !is_dir {
@@ -175,20 +172,40 @@ pub fn install_package(options: InstallPackageOptions) -> Result<InstalledPackag
         at: SystemTime::now(),
         binaries: items_to_copy
             .iter()
-            .map(|file| match &file.file_type {
-                FileNature::Binary { copy_as } => copy_as.clone(),
-                // FileNature::ConfigDir | AssetFileType::ConfigSubDir { copy_as: _ } => None,
+            .filter_map(|file| match &file.file_type {
+                FileNature::Binary { copy_as } => Some(copy_as.clone()),
+                FileNature::Library { name: _ } => None,
+                FileNature::IsolatedDir { name: _ } => None,
+            })
+            .collect(),
+
+        libraries: items_to_copy
+            .iter()
+            .filter_map(|file| match &file.file_type {
+                FileNature::Binary { copy_as: _ } => None,
+                FileNature::Library { name } => Some(name.clone()),
+                FileNature::IsolatedDir { name: _ } => None,
+            })
+            .collect(),
+
+        data_dirs: items_to_copy
+            .iter()
+            .filter_map(|file| match &file.file_type {
+                FileNature::Binary { copy_as: _ } => None,
+                FileNature::Library { name: _ } => None,
+                FileNature::IsolatedDir { name } => Some(name.clone()),
             })
             .collect(),
     })
 }
 
-pub struct InstallPackagesOptions<'a, 'b, 'c, 'd, 'e> {
+pub struct InstallPackagesOptions<'a, 'b, 'c, 'd, 'e, 'f> {
     pub bin_dir: &'a Path,
-    pub app_state: &'b mut AppState,
-    pub state_file_path: &'c Path,
-    pub repositories: &'d Repositories,
-    pub names: &'e [String],
+    pub isolated_dir: &'b Path,
+    pub app_state: &'c mut AppState,
+    pub state_file_path: &'d Path,
+    pub repositories: &'e Repositories,
+    pub names: &'f [String],
     pub confirm: bool,
     pub ignore_installed: bool,
     pub quiet: bool,
@@ -197,6 +214,7 @@ pub struct InstallPackagesOptions<'a, 'b, 'c, 'd, 'e> {
 pub fn install_packages(
     InstallPackagesOptions {
         bin_dir,
+        isolated_dir,
         app_state,
         state_file_path,
         repositories,
@@ -204,7 +222,7 @@ pub fn install_packages(
         confirm,
         ignore_installed,
         quiet,
-    }: InstallPackagesOptions<'_, '_, '_, '_, '_>,
+    }: InstallPackagesOptions,
 ) -> Result<()> {
     let to_install = names
         .iter()
@@ -293,6 +311,7 @@ pub fn install_packages(
             &repo.content.name,
             asset_infos,
             bin_dir,
+            isolated_dir,
             progress_bar_tracker(),
         ) {
             Ok(data) => data,
@@ -348,6 +367,7 @@ pub fn update_packages(
     app_state: &mut AppState,
     repositories: &Repositories,
     bin_dir: &Path,
+    isolated_dir: &Path,
     names: &[String],
     force: bool,
 ) -> Result<()> {
@@ -433,6 +453,7 @@ pub fn update_packages(
             &repo.content.name,
             asset_infos,
             bin_dir,
+            isolated_dir,
             progress_bar_tracker(),
         ) {
             Ok(data) => data,

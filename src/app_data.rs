@@ -36,4 +36,6 @@ pub struct InstalledPackage {
     pub version: String,
     pub at: SystemTime,
     pub binaries: Vec<String>,
+    pub libraries: Vec<String>,
+    pub data_dirs: Vec<String>,
 }

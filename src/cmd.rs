@@ -17,8 +17,11 @@ pub struct Cmd {
 
 #[derive(Subcommand)]
 pub enum Action {
-    #[clap(about = "Path to the binaries directory")]
-    Path,
+    #[clap(
+        subcommand,
+        about = "Path to the binaries directory (or the provided one)"
+    )]
+    Path(PathAction),
 
     #[clap(subcommand, about = "Manage repositories")]
     Repos(ReposAction),
@@ -42,8 +45,17 @@ pub enum Action {
     Uninstall(UninstallArgs),
 }
 
-// #[derive(Args)]
-// pub struct PathArgs {}
+#[derive(Subcommand)]
+pub enum PathAction {
+    #[clap(about = "Get path to the binaries directory")]
+    Binaries,
+
+    #[clap(about = "Get full path to an installed package")]
+    ProgramBinary { name: String },
+
+    #[clap(about = "Get the isolated data directory of a specific program")]
+    ProgramData { name: String },
+}
 
 #[derive(Subcommand)]
 pub enum ReposAction {
@@ -72,12 +84,6 @@ pub struct AddRepoArgs {
     )]
     pub ignore: bool,
 }
-
-// #[derive(Args)]
-// pub struct UpdateReposArgs {}
-
-// #[derive(Args)]
-// pub struct ListReposArgs {}
 
 #[derive(Args)]
 pub struct ValidateRepoFileArgs {

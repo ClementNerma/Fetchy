@@ -3,11 +3,9 @@
 #![warn(unused_crate_dependencies)]
 
 use glob::Pattern;
-use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use openssl_sys as _;
 
 use std::{
-    fmt::Write,
     fs,
     path::{Path, PathBuf},
     sync::atomic::Ordering,
@@ -71,6 +69,8 @@ fn inner() -> Result<()> {
     }
 
     let bin_dir = app_data_dir.join("bin");
+    let isolated_dir = app_data_dir.join("isolated-data");
+
     let state_file_path = app_data_dir.join("state.json");
     let repositories_file_path = app_data_dir.join("repositories.json");
 
@@ -103,14 +103,60 @@ fn inner() -> Result<()> {
     };
 
     match args.action {
-        Action::Path => {
-            print!(
+        Action::Path(action) => match action {
+            PathAction::Binaries => print!(
                 "{}",
                 bin_dir
                     .to_str()
                     .context("Path to the binaries directory contains invalid UTF-8 characters")?
-            );
-        }
+            ),
+
+            PathAction::ProgramBinary { name } => {
+                let app_state = app_state()?;
+
+                let installed = app_state
+                    .installed
+                    .iter()
+                    .find(|pkg| pkg.pkg_name == name)
+                    .with_context(|| format!("Provided package '{name}' was not found"))?;
+
+                if installed.binaries.is_empty() {
+                    bail!("Package '{name}' has no binary");
+                }
+
+                if installed.binaries.len() > 1 {
+                    bail!(
+                        "Package '{name}' has more than one binary: {}",
+                        installed.binaries.join(", ")
+                    );
+                }
+
+                print!("{}", bin_dir.join(&installed.binaries[0]).display());
+            }
+
+            PathAction::ProgramData { name } => {
+                let app_state = app_state()?;
+
+                let installed = app_state
+                    .installed
+                    .iter()
+                    .find(|pkg| pkg.pkg_name == name)
+                    .with_context(|| format!("Provided package '{name}' was not found"))?;
+
+                if installed.data_dirs.is_empty() {
+                    bail!("Package '{name}' has no data dir");
+                }
+
+                if installed.data_dirs.len() > 1 {
+                    bail!(
+                        "Package '{name}' has more than one data dir: {}",
+                        installed.data_dirs.join(", ")
+                    );
+                }
+
+                print!("{}", isolated_dir.join(&installed.data_dirs[0]).display());
+            }
+        },
 
         Action::Repos(action) => match action {
             ReposAction::Add(AddRepoArgs { file, ignore }) => {
@@ -261,6 +307,7 @@ fn inner() -> Result<()> {
 
             install_packages(InstallPackagesOptions {
                 bin_dir: &bin_dir,
+                isolated_dir: &isolated_dir,
                 app_state: &mut app_state,
                 state_file_path: &state_file_path,
                 repositories: &repositories()?,
@@ -280,6 +327,7 @@ fn inner() -> Result<()> {
 
             install_packages(InstallPackagesOptions {
                 bin_dir: &bin_dir,
+                isolated_dir: &isolated_dir,
                 app_state: &mut app_state()?,
                 state_file_path: &state_file_path,
                 repositories: &repositories,
@@ -319,6 +367,8 @@ fn inner() -> Result<()> {
                 version,
                 at: _,
                 binaries,
+                libraries,
+                data_dirs,
             } in installed
             {
                 print!(
@@ -337,6 +387,22 @@ fn inner() -> Result<()> {
                     print!("{}", bin.bright_green().underline());
                 }
 
+                for (i, bin) in libraries.iter().enumerate() {
+                    if i > 0 || !binaries.is_empty() {
+                        print!(", ");
+                    }
+
+                    print!("{}", bin.bright_yellow().underline());
+                }
+
+                for (i, dir) in data_dirs.iter().enumerate() {
+                    if i > 0 || !binaries.is_empty() || !libraries.is_empty() {
+                        print!(", ");
+                    }
+
+                    print!("{}", dir.bright_blue());
+                }
+
                 println!();
             }
         }
@@ -345,7 +411,14 @@ fn inner() -> Result<()> {
             let mut app_state = app_state()?;
             let repositories = repositories()?;
 
-            let result = update_packages(&mut app_state, &repositories, &bin_dir, &names, force);
+            let result = update_packages(
+                &mut app_state,
+                &repositories,
+                &bin_dir,
+                &isolated_dir,
+                &names,
+                force,
+            );
 
             save_app_state(&state_file_path, &app_state)?;
 
@@ -414,18 +487,4 @@ fn save_repositories(repositories_file_path: &Path, repositories: &Repositories)
 
     fs::write(repositories_file_path, repositories_str)
         .context("Failed to write the repositories to disk")
-}
-
-pub fn progress_bar_tracker() -> ProgressBar {
-    ProgressBar::new(0)
-    .with_style(
-        ProgressStyle::with_template(
-            "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})",
-        )
-        .unwrap()
-        .with_key("eta", |state: &ProgressState, w: &mut dyn Write| {
-            write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap()
-        })
-        .progress_chars("#>-")
-    )
 }

@@ -56,6 +56,6 @@ pub struct SingleFileExtraction {
 #[derive(Serialize, Deserialize, Clone)]
 pub enum FileNature {
     Binary { copy_as: String },
-    // ConfigDir,
-    // ConfigSubDir { copy_as: String },
+    Library { name: String },
+    IsolatedDir { name: String },
 }
