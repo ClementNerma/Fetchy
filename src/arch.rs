@@ -32,20 +32,47 @@ macro_rules! supported_platforms {
 supported_platforms!(target_arch as CpuArch => x86_64, aarch64);
 
 // List of all supported target OSes
-supported_platforms!(target_os as System => linux);
+supported_platforms!(target_os as System => linux, windows);
 
 // Platform-dependent value
 #[derive(Serialize, Deserialize)]
-pub struct PlatformDependent<T>(pub Vec<(CpuArch, System, T)>);
+pub struct PlatformDependent<T>(pub Vec<PlatformDependentEntry<T>>);
 
 impl<T> PlatformDependent<T> {
+    pub fn new(entries: impl Into<Vec<PlatformDependentEntry<T>>>) -> Self {
+        Self(entries.into())
+    }
+
     pub fn get_for_current_platform(&self) -> Result<&T> {
-        for (arch, os, value) in &self.0 {
-            if *arch == CPU_ARCH && *os == SYSTEM {
+        for entry in &self.0 {
+            let PlatformDependentEntry {
+                cpu_arch,
+                system,
+                value,
+            } = entry;
+
+            if *cpu_arch == CPU_ARCH && *system == SYSTEM {
                 return Ok(value);
             }
         }
 
         bail!("No value found for current platform ({CPU_ARCH}, {SYSTEM})",);
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct PlatformDependentEntry<T> {
+    pub system: System,
+    pub cpu_arch: CpuArch,
+    pub value: T,
+}
+
+impl<T> PlatformDependentEntry<T> {
+    pub fn new(system: System, cpu_arch: CpuArch, value: T) -> Self {
+        Self {
+            system,
+            cpu_arch,
+            value,
+        }
     }
 }

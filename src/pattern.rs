@@ -4,10 +4,20 @@ use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
 };
 
+#[derive(Clone)]
 pub struct Pattern {
     pub source: String,
     pub regex: Regex,
-    pub captures: bool,
+}
+
+impl Pattern {
+    pub fn parse(input: &str) -> Result<Self, String> {
+        Ok(Pattern {
+            source: input.to_owned(),
+            regex: Regex::new(input)
+                .map_err(|err| format!("Failed to parse regex ({input}): {err}"))?,
+        })
+    }
 }
 
 impl Serialize for Pattern {
@@ -35,16 +45,8 @@ impl<'de> Visitor<'de> for RegexVisitor {
         let regex = Regex::new(str)
             .map_err(|err| E::custom(format!("Failed to parse regex ({str}): {err}")))?;
 
-        if regex.captures_len() > 1 {
-            E::custom(format!(
-                "Regex ({}) is only allowed to have one single capture group",
-                str
-            ));
-        }
-
         Ok(Pattern {
             source: str.to_owned(),
-            captures: regex.captures_len() == 1,
             regex,
         })
     }

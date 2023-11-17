@@ -2,50 +2,90 @@ use anyhow::{bail, Context, Result};
 use reqwest::{blocking::Client, StatusCode};
 use serde::{Deserialize, Serialize};
 
-use crate::{debug, fetcher::Asset, pattern::Pattern};
+use crate::{
+    arch::PlatformDependent, debug, fetcher::AssetInfos, pattern::Pattern,
+    repository::FileExtraction,
+};
 
-pub fn fetch_latest_release_asset(
-    author: &str,
-    repo_name: &str,
-    asset_pattern: &Pattern,
-) -> Result<Asset> {
-    let release = fetch_latest_release(author, repo_name)?;
+use super::AssetSource;
 
-    if release.assets.is_empty() {
-        bail!("No asset found in latest release in repo {author}/{repo_name}");
+#[derive(Serialize, Deserialize)]
+pub struct GitHubSourceParams {
+    pub author: String,
+    pub repo_name: String,
+    pub asset: PlatformDependent<(Pattern, FileExtraction)>,
+    pub version: GitHubVersionExtraction,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy)]
+pub enum GitHubVersionExtraction {
+    TagName,
+    ReleaseTitle,
+}
+
+pub struct GitHubSource;
+
+impl AssetSource for GitHubSource {
+    type Params = GitHubSourceParams;
+
+    fn make_parser() -> Box<dyn parsy::Parser<Self>> {
+        todo!()
     }
 
-    let (filtered_assets, non_matching_assets) = release
-        .assets
-        .into_iter()
-        .partition::<Vec<_>, _>(|asset| asset_pattern.regex.is_match(&asset.name));
+    fn fetch(params: &Self::Params) -> anyhow::Result<AssetInfos> {
+        let GitHubSourceParams {
+            author,
+            repo_name,
+            asset,
+            version,
+        } = params;
 
-    if filtered_assets.len() > 1 {
-        bail!(
-            "Multiple entries matched the asset regex ({}):\n{}",
-            asset_pattern.source,
-            filtered_assets
-                .into_iter()
-                .map(|asset| format!("* {}", asset.name))
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
+        let (asset_pattern, extraction) = asset.get_for_current_platform()?;
+
+        let release = fetch_latest_release(author, repo_name)?;
+
+        if release.assets.is_empty() {
+            bail!("No asset found in latest release in repo {author}/{repo_name}");
+        }
+
+        let (filtered_assets, non_matching_assets) = release
+            .assets
+            .into_iter()
+            .partition::<Vec<_>, _>(|asset| asset_pattern.regex.is_match(&asset.name));
+
+        if filtered_assets.len() > 1 {
+            bail!(
+                "Multiple entries matched the asset regex ({}):\n{}",
+                asset_pattern.source,
+                filtered_assets
+                    .into_iter()
+                    .map(|asset| format!("* {}", asset.name))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        }
+
+        let asset = filtered_assets.into_iter().next().with_context(|| {
+            format!(
+                "No entry matched the release regex ({}) in repo {author}/{repo_name}.\nFound non-matching assets:\n\n{}",
+                asset_pattern.source,
+                non_matching_assets.iter().map(|asset| format!("* {}", asset.name)).collect::<Vec<_>>().join("\n")
+            )
+        })?;
+
+        let version = match version {
+            GitHubVersionExtraction::TagName => release.tag_name,
+            GitHubVersionExtraction::ReleaseTitle => {
+                release.name.context("Fetched released has no title")?
+            }
+        };
+
+        Ok(AssetInfos {
+            url: asset.browser_download_url,
+            version,
+            extraction: extraction.clone(),
+        })
     }
-
-    let asset = filtered_assets.into_iter().next().with_context(|| {
-        format!(
-            "No entry matched the release regex ({}) in repo {author}/{repo_name}.\nFound non-matching assets:\n\n{}",
-            asset_pattern.source,
-            non_matching_assets.iter().map(|asset| format!("* {}", asset.name)).collect::<Vec<_>>().join("\n")
-        )
-    })?;
-
-    Ok(Asset {
-        url: asset.browser_download_url,
-        filename: Some(asset.name),
-        release_title: release.name,
-        tag_name: Some(release.tag_name),
-    })
 }
 
 fn fetch_latest_release(author: &str, repo_name: &str) -> Result<GitHubRelease> {

@@ -6,7 +6,12 @@ use glob::Pattern;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use openssl_sys as _;
 
-use std::{fmt::Write, fs, path::Path, sync::atomic::Ordering};
+use std::{
+    fmt::Write,
+    fs,
+    path::{Path, PathBuf},
+    sync::atomic::Ordering,
+};
 
 use anyhow::{bail, Context, Result};
 use app_data::{AppState, InstalledPackage, Repositories, RepositorySource, SourcedRepository};
@@ -27,6 +32,7 @@ mod cmd;
 mod fetcher;
 mod installer;
 mod logging;
+mod parser;
 mod pattern;
 mod repository;
 mod selector;
@@ -52,16 +58,17 @@ fn inner() -> Result<()> {
         PRINT_DEBUG_MESSAGES.store(true, Ordering::Release);
     }
 
-    let app_data_dir = dirs::data_local_dir()
-        .context("Failed to get path to local data directory")?
-        .join("fetchy");
+    let app_data_dir = match std::env::var_os("FETCHY_DATA_DIR") {
+        Some(path) => PathBuf::from(path),
+        None => dirs::data_local_dir()
+            .context("Failed to get path to local data directory")?
+            .join("fetchy"),
+    };
 
     if !app_data_dir.exists() {
         fs::create_dir_all(&app_data_dir)
             .context("Failed to create the application's data directory")?;
     }
-
-    let config_dir = dirs::config_dir().context("Failed to get path to config directory")?;
 
     let bin_dir = app_data_dir.join("bin");
     let state_file_path = app_data_dir.join("state.json");
@@ -181,7 +188,7 @@ fn inner() -> Result<()> {
                 let repo = fetch_repository(&RepositorySource::File(file.clone()))?;
 
                 success!(
-                    "Successfully validated repository file, containing {} packages.",
+                    "Successfully validated repository file, containing {} package(s).",
                     repo.packages.len()
                 );
             }
@@ -254,7 +261,6 @@ fn inner() -> Result<()> {
 
             install_packages(InstallPackagesOptions {
                 bin_dir: &bin_dir,
-                config_dir: &config_dir,
                 app_state: &mut app_state,
                 state_file_path: &state_file_path,
                 repositories: &repositories()?,
@@ -274,7 +280,6 @@ fn inner() -> Result<()> {
 
             install_packages(InstallPackagesOptions {
                 bin_dir: &bin_dir,
-                config_dir: &config_dir,
                 app_state: &mut app_state()?,
                 state_file_path: &state_file_path,
                 repositories: &repositories,
@@ -340,14 +345,7 @@ fn inner() -> Result<()> {
             let mut app_state = app_state()?;
             let repositories = repositories()?;
 
-            let result = update_packages(
-                &mut app_state,
-                &repositories,
-                &bin_dir,
-                &config_dir,
-                &names,
-                force,
-            );
+            let result = update_packages(&mut app_state, &repositories, &bin_dir, &names, force);
 
             save_app_state(&state_file_path, &app_state)?;
 
