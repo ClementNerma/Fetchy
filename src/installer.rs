@@ -1,6 +1,6 @@
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{Path, PathBuf, MAIN_SEPARATOR_STR},
     time::SystemTime,
 };
 
@@ -85,8 +85,10 @@ pub fn install_package(options: InstallPackageOptions) -> Result<InstalledPackag
                     continue;
                 };
 
+                let path_str = path_str.replace('\\', "/");
+
                 for (i, file) in files.iter().enumerate() {
-                    if !file.relative_path.regex.is_match(path_str) {
+                    if !file.relative_path.regex.is_match(&path_str) {
                         continue;
                     }
 
@@ -103,7 +105,7 @@ pub fn install_package(options: InstallPackageOptions) -> Result<InstalledPackag
                         file_type: file.nature.clone(),
                     });
 
-                    treated[i] = Some(path_str.to_owned());
+                    treated[i] = Some(path_str.replace('/', MAIN_SEPARATOR_STR));
                 }
             }
 
