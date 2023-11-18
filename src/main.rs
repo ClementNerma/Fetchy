@@ -154,7 +154,13 @@ fn inner() -> Result<()> {
                     );
                 }
 
-                print!("{}", isolated_dir.join(&installed.data_dirs[0]).display());
+                print!(
+                    "{}",
+                    isolated_dir
+                        .join(&name)
+                        .join(&installed.data_dirs[0])
+                        .display()
+                );
             }
         },
 
