@@ -31,7 +31,7 @@ pub fn fetch_repository(repo: &RepositorySource) -> Result<Repository> {
                 .map(|parsed| parsed.data)
                 .map_err(|err| {
                     let LocationInString { line, col } =
-                        err.inner().at().start.compute_offset_in(&repo_str).unwrap();
+                        err.inner().at().compute_offset_in(&repo_str).unwrap();
 
                     anyhow!(
                         "Failed to parse repository: parsing error at line {} column {}: {}",

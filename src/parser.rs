@@ -1,4 +1,4 @@
-use parsy::{char, choice, filter, just, whitespaces, Parser};
+use parsy::{char, choice, filter, just, newline, whitespaces, Parser};
 
 use crate::{
     arch::{CpuArch, PlatformDependent, PlatformDependentEntry, System},
@@ -51,22 +51,22 @@ pub fn repository() -> impl Parser<Repository> {
     let file_nature = choice::<_, FileNature>((
         just("binary")
             .ignore_then(s)
-            .ignore_then(string.clone().critical("expected a binary filename"))
+            .ignore_then(string.critical("expected a binary filename"))
             .map(|copy_as| FileNature::Binary { copy_as }),
         just("library")
             .ignore_then(s)
-            .ignore_then(string.clone().critical("expected a library filename"))
+            .ignore_then(string.critical("expected a library filename"))
             .map(|name| FileNature::Library { name }),
         just("isolated_dir")
             .ignore_then(s)
-            .ignore_then(string.clone().critical("expected a filename"))
+            .ignore_then(string.critical("expected a filename"))
             .map(|name| FileNature::IsolatedDir { name }),
     ));
 
-    let pattern = string.clone().try_map(|string| Pattern::parse(&string));
+    let pattern = string.try_map(|string| Pattern::parse(&string));
 
     let single_file_extraction = pattern
-        .then_ignore(arrow.clone())
+        .then_ignore(arrow)
         .then(file_nature.critical("expected a file nature"))
         .map(|(relative_path, nature)| SingleFileExtraction {
             relative_path,
@@ -83,14 +83,14 @@ pub fn repository() -> impl Parser<Repository> {
     let file_extraction = choice::<_, FileExtraction>((
         just("binary")
             .ignore_then(s)
-            .ignore_then(string.clone().critical("expected a binary filename"))
+            .ignore_then(string.critical("expected a binary filename"))
             .map(|copy_as| FileExtraction::Binary { copy_as }),
         archive_format
             .then_ignore(ms)
             .then_ignore(char('(').critical_expectation())
             .then(
                 single_file_extraction
-                    .padded()
+                    .padded_by(msnl)
                     .separated_by(char(','))
                     .at_least(1)
                     .critical("expected file extractions"),
@@ -100,16 +100,11 @@ pub fn repository() -> impl Parser<Repository> {
     ));
 
     let direct_asset = platform
-        .clone()
-        .then_ignore(arrow.clone().critical_expectation())
+        .then_ignore(arrow.critical_expectation())
         .then_ignore(ms)
-        .then(string.clone().critical("expected an URL"))
-        .then_ignore(arrow.clone().critical_expectation())
-        .then(
-            file_extraction
-                .clone()
-                .critical("expected a file extraction"),
-        )
+        .then(string.critical("expected an URL"))
+        .then_ignore(arrow.critical_expectation())
+        .then(file_extraction.critical("expected a file extraction"))
         .map::<_, PlatformDependentEntry<(String, FileExtraction)>>(
             |(((system, cpu_arch), asset_pattern), file_extraction)| {
                 PlatformDependentEntry::new(system, cpu_arch, (asset_pattern, file_extraction))
@@ -119,17 +114,13 @@ pub fn repository() -> impl Parser<Repository> {
     let direct_source_params = just("version")
         .critical_expectation()
         .ignore_then(char('(').critical_expectation())
-        .ignore_then(
-            string
-                .clone()
-                .critical("expected a hardcoded version string"),
-        )
+        .ignore_then(string.critical("expected a hardcoded version string"))
         .then_ignore(char(')').critical_expectation())
         .then_ignore(s)
         .then_ignore(char('(').critical_expectation())
         .then(
             direct_asset
-                .padded()
+                .padded_by(msnl)
                 .separated_by(char(','))
                 .at_least(1)
                 .critical("expected at least 1 downloadable asset")
@@ -142,15 +133,13 @@ pub fn repository() -> impl Parser<Repository> {
         });
 
     let github_asset = platform
-        .clone()
         .critical_expectation()
-        .then_ignore(arrow.clone())
+        .then_ignore(arrow)
         .then_ignore(ms)
         .then_ignore(just("asset").critical_expectation())
         .then_ignore(char('(').critical_expectation())
         .then(
             string
-                .clone()
                 .critical("expected an asset pattern")
                 .try_map(|pattern| Pattern::parse(&pattern)),
         )
@@ -164,10 +153,9 @@ pub fn repository() -> impl Parser<Repository> {
         );
 
     let github_source_params = string
-        .clone()
         .critical("expected a GitHub username")
         .then_ignore(s.critical_expectation())
-        .then(string.clone().critical("expected a repository name"))
+        .then(string.critical("expected a repository name"))
         .then_ignore(s.critical_expectation())
         .then_ignore(just("version").critical_expectation())
         .then_ignore(char('(').critical_expectation())
@@ -183,7 +171,7 @@ pub fn repository() -> impl Parser<Repository> {
         .then_ignore(char('(').critical_expectation())
         .then(
             github_asset
-                .padded()
+                .padded_by(msnl)
                 .separated_by(char(','))
                 .map(PlatformDependent),
         )
@@ -198,7 +186,6 @@ pub fn repository() -> impl Parser<Repository> {
         );
 
     let package = string
-        .clone()
         .then_ignore(char(':').critical_expectation())
         .then_ignore(msnl)
         .then(
@@ -225,20 +212,18 @@ pub fn repository() -> impl Parser<Repository> {
             source: download,
         });
 
-    let name = just("@name").ignore_then(s).ignore_then(string.clone());
+    let name = just("@name").ignore_then(s).ignore_then(string);
 
-    let description = just("@description")
-        .ignore_then(s)
-        .ignore_then(string.clone());
+    let description = just("@description").ignore_then(s).ignore_then(string);
 
-    let newlines = char('\n').repeated().at_least(1);
+    let newlines = newline().repeated().at_least(1);
 
     let packages = just("@packages")
         .ignore_then(s)
         .ignore_then(char('(').critical_expectation())
         .ignore_then(
             package
-                .padded()
+                .padded_by(msnl)
                 .repeated_vec()
                 .at_least(1)
                 .critical("expected at least 1 package in repository"),
@@ -247,9 +232,9 @@ pub fn repository() -> impl Parser<Repository> {
 
     let repository = name
         .critical("expected a repository name")
-        .then_ignore(newlines.clone().critical_expectation())
+        .then_ignore(newlines.critical_expectation())
         .then(description.critical("expected a repository description"))
-        .then_ignore(newlines.clone().critical_expectation())
+        .then_ignore(newlines.critical_expectation())
         .then(packages.critical("expected a list of packages"))
         .map(|((name, description), packages)| Repository {
             name,
@@ -257,5 +242,5 @@ pub fn repository() -> impl Parser<Repository> {
             packages,
         });
 
-    repository.padded().full()
+    repository.padded_by(msnl).full()
 }
