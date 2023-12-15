@@ -63,7 +63,20 @@ pub fn extract_archive(
 fn extract_zip_sync(zip_path: &Path, extract_to: &Path) -> Result<()> {
     let file = File::open(zip_path).context("Failed to open ZIP file")?;
 
-    let mut zip = ZipArchive::new(file).context("Failed to parse ZIP file")?;
+    let mut zip = ZipArchive::new(file).with_context(|| {
+        format!(
+            "Failed to parse ZIP file{}",
+            if zip_path
+                .extension()
+                .map_or(false, |ext| ext.to_string_lossy().to_ascii_lowercase()
+                    == "zip")
+            {
+                ""
+            } else {
+                " (note: file extension does not end with .zip, is it really a ZIP archive?)"
+            }
+        )
+    })?;
 
     zip.extract(extract_to)
         .context("Failed to extract ZIP archive")?;
