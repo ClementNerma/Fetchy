@@ -1,6 +1,6 @@
 [package]
 name = "fetchy"
-version = "0.8.3"
+version = "0.8.4"
 edition = "2021"
 description = "Quick packages installer"
 license = "Apache-2.0"
