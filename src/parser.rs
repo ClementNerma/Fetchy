@@ -186,6 +186,17 @@ pub fn repository() -> impl Parser<Repository> {
         );
 
     let package = string
+        .then(
+            s.ignore_then(just("(requires"))
+                .ignore_then(s.critical_expectation())
+                .ignore_then(
+                    string
+                        .separated_by(char(',').padded_by(ms))
+                        .critical("expected a list of dependencies"),
+                )
+                .then_ignore(char(')').critical_expectation())
+                .or_not(),
+        )
         .then_ignore(char(':').critical_expectation())
         .then_ignore(msnl)
         .then(
@@ -207,8 +218,9 @@ pub fn repository() -> impl Parser<Repository> {
             ))
             .critical("expected a valid download source"),
         )
-        .map(|(name, download)| Package {
+        .map(|((name, depends_on), download)| Package {
             name,
+            depends_on,
             source: download,
         });
 

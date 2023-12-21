@@ -126,15 +126,7 @@ pub struct RequireArgs {
     #[clap(help = "Name of the package(s) to install")]
     pub names: Vec<String>,
 
-    #[clap(short, long, help = "Don't install missing packages")]
-    pub no_install: bool,
-
-    #[clap(
-        short,
-        long,
-        conflicts_with = "no_install",
-        help = "Ask for confirmation before installing"
-    )]
+    #[clap(short, long, help = "Ask for confirmation before installing")]
     pub confirm: bool,
 }
 

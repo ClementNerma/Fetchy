@@ -10,7 +10,7 @@ use dialoguer::Select;
 use tempfile::TempDir;
 
 use crate::{
-    app_data::{AppState, InstalledPackage, Repositories},
+    app_data::{AppState, InstalledPackage, Repositories, SourcedRepository},
     archives::extract_archive,
     debug, error, error_anyhow,
     fetcher::{fetch_package, fetch_package_asset_infos},
@@ -226,35 +226,32 @@ pub fn install_packages(
         quiet,
     }: InstallPackagesOptions,
 ) -> Result<()> {
-    let to_install = names
-        .iter()
-        .filter(|name| {
-            !ignore_installed || !app_state.installed.iter().any(|pkg| &&pkg.pkg_name == name)
-        })
-        .map(|name| {
-            let candidates = find_matching_packages(repositories, name);
+    let mut to_install: Vec<ResolvedPkg> = vec![];
 
-            if candidates.len() > 1 {
-                bail!(
-                    "Multiple candidates found for this package:\n{}",
-                    candidates
-                        .iter()
-                        .map(|(repo, pkg)| format!(
-                            "* {} (from repository {})",
-                            pkg.name.bright_yellow(),
-                            repo.content.name.bright_magenta()
-                        ))
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                );
+    for name in names {
+        for resolved in find_package_with_dependencies(name, repositories)? {
+            let is_dup = to_install
+                .iter()
+                .any(|c| c.package.name == resolved.package.name);
+
+            if is_dup {
+                continue;
             }
 
-            candidates
-                .into_iter()
-                .next()
-                .with_context(|| format!("Package {} was not found", name.bright_yellow()))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+            if ignore_installed {
+                let already_installed = app_state
+                    .installed
+                    .iter()
+                    .any(|pkg| pkg.pkg_name == resolved.package.name);
+
+                if already_installed {
+                    continue;
+                }
+            }
+
+            to_install.push(resolved);
+        }
+    }
 
     if to_install.is_empty() {
         if !quiet {
@@ -272,7 +269,7 @@ pub fn install_packages(
             "Going to install {yellow_len} package(s):\n{}\n\nDo you want to continue?",
             to_install
                 .iter()
-                .map(|(_, pkg)| format!("* {}", pkg.name.bright_yellow()))
+                .map(|resolved| format!("* {}", resolved.package.name.bright_yellow()))
                 .collect::<Vec<_>>()
                 .join("\n")
         )
@@ -290,16 +287,28 @@ pub fn install_packages(
 
     let mut failed = 0;
 
-    for (i, (repo, pkg)) in to_install.into_iter().enumerate() {
+    for (i, resolved) in to_install.into_iter().enumerate() {
+        let ResolvedPkg {
+            from_repo,
+            package,
+            dependency_of,
+        } = resolved;
+
         info!(
-            "==> Installing package {} from repo {} ({} / {})...",
-            pkg.name.bright_yellow(),
-            repo.content.name.bright_magenta(),
+            "==> Installing package {} from repo {}{} ({} / {})...",
+            package.name.bright_yellow(),
+            from_repo.content.name.bright_magenta(),
+            dependency_of
+                .map(|dependency_of| format!(
+                    " (as a dependency of {})",
+                    dependency_of.bright_yellow()
+                ))
+                .unwrap_or_default(),
             (i + 1).to_string().bright_yellow(),
             yellow_len,
         );
 
-        let asset_infos = match fetch_package_asset_infos(pkg) {
+        let asset_infos = match fetch_package_asset_infos(package) {
             Ok(data) => data,
             Err(err) => {
                 error_anyhow!(err);
@@ -309,8 +318,8 @@ pub fn install_packages(
         };
 
         let fetched = match fetch_package(
-            pkg,
-            &repo.content.name,
+            package,
+            &from_repo.content.name,
             asset_infos,
             bin_dir,
             isolated_dir,
@@ -345,7 +354,7 @@ pub fn install_packages(
         );
 
         let existing_index = app_state.installed.iter().position(|installed| {
-            installed.repo_name == repo.content.name && installed.pkg_name == pkg.name
+            installed.repo_name == from_repo.content.name && installed.pkg_name == package.name
         });
 
         match existing_index {
@@ -485,6 +494,85 @@ pub fn update_packages(
     }
 
     Ok(())
+}
+
+fn find_package<'a>(
+    name: &str,
+    repositories: &'a Repositories,
+) -> Result<(&'a SourcedRepository, &'a Package)> {
+    let candidates = find_matching_packages(repositories, name);
+
+    if candidates.len() > 1 {
+        bail!(
+            "Multiple candidates found for this package:\n{}",
+            candidates
+                .iter()
+                .map(|(repo, pkg)| format!(
+                    "* {} (from repository {})",
+                    pkg.name.bright_yellow(),
+                    repo.content.name.bright_magenta()
+                ))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+    }
+
+    candidates
+        .into_iter()
+        .next()
+        .with_context(|| format!("Package {} was not found", name.bright_yellow()))
+}
+
+fn find_package_with_dependencies<'a>(
+    name: &str,
+    repositories: &'a Repositories,
+) -> Result<Vec<ResolvedPkg<'a>>> {
+    let (from_repo, package) = find_package(name, repositories)?;
+
+    let mut out = vec![ResolvedPkg {
+        from_repo,
+        package,
+        dependency_of: None,
+    }];
+
+    out.append(&mut resolve_package_dependencies(package, repositories)?);
+
+    Ok(out)
+}
+
+fn resolve_package_dependencies<'a>(
+    package: &'a Package,
+    repositories: &'a Repositories,
+) -> Result<Vec<ResolvedPkg<'a>>> {
+    let mut out = vec![];
+
+    for dep in package.depends_on.as_ref().unwrap_or(&vec![]) {
+        let (from_repo, dep_pkg) = find_package(dep, repositories).with_context(|| {
+            format!(
+                "Failed to find package '{dep}' which is a dependency of '{}'",
+                package.name
+            )
+        })?;
+
+        let mut resolved = resolve_package_dependencies(dep_pkg, repositories)?;
+
+        out.push(ResolvedPkg {
+            from_repo,
+            package: dep_pkg,
+            dependency_of: Some(&package.name),
+        });
+
+        out.append(&mut resolved);
+    }
+
+    Ok(out)
+}
+
+#[derive(Clone, Copy)]
+struct ResolvedPkg<'a> {
+    from_repo: &'a SourcedRepository,
+    package: &'a Package,
+    dependency_of: Option<&'a str>,
 }
 
 pub struct ItemToCopy {

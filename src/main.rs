@@ -2,9 +2,6 @@
 #![forbid(unused_must_use)]
 #![warn(unused_crate_dependencies)]
 
-use glob::Pattern;
-use openssl_sys as _;
-
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -17,8 +14,10 @@ use clap::Parser;
 use cmd::*;
 use colored::Colorize;
 use fetcher::fetch_repository;
+use glob::Pattern;
 use installer::{update_packages, InstallPackagesOptions};
 use logging::PRINT_DEBUG_MESSAGES;
+use openssl_sys as _;
 use repository::Package;
 
 use crate::installer::install_packages;
@@ -279,37 +278,8 @@ fn inner() -> Result<()> {
             }
         }
 
-        Action::Require(RequireArgs {
-            names,
-            no_install,
-            confirm,
-        }) => {
+        Action::Require(RequireArgs { names, confirm }) => {
             let mut app_state = app_state()?;
-
-            let missing = names
-                .iter()
-                .filter(|name| {
-                    !app_state
-                        .installed
-                        .iter()
-                        .any(|installed| &&installed.pkg_name == name)
-                })
-                .collect::<Vec<_>>();
-
-            if missing.is_empty() {
-                return Ok(());
-            }
-
-            if no_install {
-                bail!(
-                    "Detected the following missing packages:\n{}",
-                    missing
-                        .iter()
-                        .map(|name| format!("* {}", name.bright_yellow()))
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                );
-            }
 
             install_packages(InstallPackagesOptions {
                 bin_dir: &bin_dir,
@@ -320,7 +290,7 @@ fn inner() -> Result<()> {
                 names: &names,
                 confirm,
                 ignore_installed: true,
-                quiet: args.quiet,
+                quiet: true,
             })?;
         }
 

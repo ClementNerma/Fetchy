@@ -18,6 +18,7 @@ pub struct Repository {
 pub struct Package {
     pub name: String,
     pub source: DownloadSource,
+    pub depends_on: Option<Vec<String>>
 }
 
 #[derive(Serialize, Deserialize)]
