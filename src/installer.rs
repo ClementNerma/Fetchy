@@ -238,7 +238,7 @@ pub fn install_packages(
                 continue;
             }
 
-            if ignore_installed {
+            if ignore_installed || resolved.dependency_of.is_some() {
                 let already_installed = app_state
                     .installed
                     .iter()
