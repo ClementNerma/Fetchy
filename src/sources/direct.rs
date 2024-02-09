@@ -1,8 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{arch::PlatformDependent, fetcher::AssetInfos, repository::FileExtraction};
-
 use super::AssetSource;
+use crate::{arch::PlatformDependent, fetcher::AssetInfos, repository::FileExtraction};
 
 #[derive(Serialize, Deserialize)]
 pub struct DirectSourceParams {
@@ -15,9 +14,9 @@ pub struct DirectSource;
 impl AssetSource for DirectSource {
     type Params = DirectSourceParams;
 
-    fn make_parser() -> Box<dyn parsy::Parser<Self>> {
-        todo!()
-    }
+    // fn make_parser() -> Box<dyn parsy::Parser<Self>> {
+    //     todo!()
+    // }
 
     fn fetch(params: &Self::Params) -> anyhow::Result<AssetInfos> {
         let DirectSourceParams {

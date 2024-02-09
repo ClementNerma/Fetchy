@@ -2,12 +2,11 @@ use anyhow::{bail, Context, Result};
 use reqwest::{blocking::Client, StatusCode};
 use serde::{Deserialize, Serialize};
 
+use super::AssetSource;
 use crate::{
     arch::PlatformDependent, debug, fetcher::AssetInfos, pattern::Pattern,
     repository::FileExtraction,
 };
-
-use super::AssetSource;
 
 #[derive(Serialize, Deserialize)]
 pub struct GitHubSourceParams {
@@ -28,9 +27,9 @@ pub struct GitHubSource;
 impl AssetSource for GitHubSource {
     type Params = GitHubSourceParams;
 
-    fn make_parser() -> Box<dyn parsy::Parser<Self>> {
-        todo!()
-    }
+    // fn make_parser() -> Box<dyn parsy::Parser<Self>> {
+    //     todo!()
+    // }
 
     fn fetch(params: &Self::Params) -> anyhow::Result<AssetInfos> {
         let GitHubSourceParams {
