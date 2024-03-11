@@ -9,18 +9,20 @@ use std::{
 };
 
 use anyhow::{bail, Context, Result};
-use app_data::{AppState, InstalledPackage, Repositories, RepositorySource, SourcedRepository};
 use clap::Parser;
-use cmd::*;
 use colored::Colorize;
-use fetcher::fetch_repository;
 use glob::Pattern;
-use installer::{update_packages, InstallPackagesOptions};
-use logging::PRINT_DEBUG_MESSAGES;
 use openssl_sys as _;
-use repository::Package;
 
-use crate::installer::install_packages;
+use self::{
+    app_data::{AppState, InstalledPackage, Repositories},
+    cmd::*,
+    fetcher::fetch_repository,
+    installer::{install_packages, update_packages, InstallPackagesOptions},
+    logging::PRINT_DEBUG_MESSAGES,
+    repository::Package,
+};
+use crate::app_data::{RepositorySource, SourcedRepository};
 
 mod app_data;
 mod arch;
@@ -165,6 +167,9 @@ fn inner() -> Result<()> {
 
         Action::Repos(action) => match action {
             ReposAction::Add(AddRepoArgs { file, ignore }) => {
+                let file = std::fs::canonicalize(file)
+                    .context("Failed to canonicalize provided repository file path")?;
+
                 let repo = fetch_repository(&RepositorySource::File(file.clone()))?;
 
                 let mut repositories = repositories()?;
