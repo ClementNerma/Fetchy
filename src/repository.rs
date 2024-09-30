@@ -18,7 +18,7 @@ pub struct Repository {
 pub struct Package {
     pub name: String,
     pub source: DownloadSource,
-    pub depends_on: Option<Vec<String>>
+    pub depends_on: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -28,7 +28,7 @@ pub enum DownloadSource {
     GitHub(GitHubSourceParams),
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub enum FileExtraction {
     Binary {
@@ -36,27 +36,20 @@ pub enum FileExtraction {
     },
     Archive {
         format: ArchiveFormat,
-        files: Vec<SingleFileExtraction>,
+        files: Vec<BinaryExtraction>,
     },
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub enum ArchiveFormat {
     TarGz,
     TarXz,
     Zip,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
-pub struct SingleFileExtraction {
+pub struct BinaryExtraction {
     pub relative_path: Pattern,
-    pub nature: FileNature,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub enum FileNature {
-    Binary { copy_as: String },
-    Library { name: String },
-    IsolatedDir { name: String },
+    pub rename: Option<String>,
 }

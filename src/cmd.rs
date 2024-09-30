@@ -52,9 +52,9 @@ pub enum PathAction {
 
     #[clap(about = "Get full path to an installed package")]
     ProgramBinary { name: String },
-
-    #[clap(about = "Get the isolated data directory of a specific program")]
-    ProgramData { name: String },
+    //
+    // #[clap(about = "Get the isolated data directory of a specific program")]
+    // ProgramData { name: String },
 }
 
 #[derive(Subcommand)]

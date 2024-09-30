@@ -9,47 +9,6 @@ use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 
 use crate::warn;
 
-pub fn copy_dir(from: &Path, to: &Path) -> Result<()> {
-    if !to.exists() {
-        fs::create_dir_all(to)?;
-    }
-
-    for entry in fs::read_dir(from)? {
-        let entry = entry?;
-
-        let from = entry.path();
-        let to = to.join(entry.file_name());
-
-        if from.is_symlink() {
-            bail!(
-                "Won't copy symbolic link item '{}'",
-                entry.path().to_string_lossy()
-            );
-        } else if from.is_dir() {
-            copy_dir(&from, &to).with_context(|| {
-                format!(
-                    "Failed to extract directory '{}'",
-                    entry.file_name().to_string_lossy()
-                )
-            })?;
-        } else if from.is_file() {
-            fs::copy(&from, &to).with_context(|| {
-                format!(
-                    "Failed to copy file '{}'",
-                    entry.file_name().to_string_lossy()
-                )
-            })?;
-        } else {
-            bail!(
-                "Won't copy item '{}' that is neither a file nor a directory",
-                entry.file_name().to_string_lossy()
-            );
-        }
-    }
-
-    Ok(())
-}
-
 pub fn read_dir_tree(dir: &Path) -> Result<Vec<PathBuf>> {
     let mut out = vec![];
 

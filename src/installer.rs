@@ -15,20 +15,19 @@ use crate::{
     debug, error, error_anyhow,
     fetcher::{fetch_package, fetch_package_asset_infos},
     find_matching_packages, info,
-    repository::{FileExtraction, FileNature, Package},
+    repository::{FileExtraction, Package},
     save_app_state,
     selector::find_installed_packages,
     success,
-    utils::{copy_dir, progress_bar_tracker, read_dir_tree},
+    utils::{progress_bar_tracker, read_dir_tree},
 };
 
-pub struct InstallPackageOptions<'a, 'b, 'c, 'd> {
+pub struct InstallPackageOptions<'a, 'b, 'c> {
     pub pkg: &'a Package,
     pub dl_file_path: PathBuf,
     pub tmp_dir: TempDir,
     pub bin_dir: &'b Path,
-    pub isolated_dir: &'c Path,
-    pub repo_name: &'d str,
+    pub repo_name: &'c str,
     pub version: String,
     pub extraction: FileExtraction,
 }
@@ -39,7 +38,6 @@ pub fn install_package(options: InstallPackageOptions) -> Result<InstalledPackag
         dl_file_path,
         tmp_dir,
         bin_dir,
-        isolated_dir,
         repo_name,
         version,
         extraction,
@@ -48,11 +46,9 @@ pub fn install_package(options: InstallPackageOptions) -> Result<InstalledPackag
     debug!("Installing package {repo_name}/{}", pkg.name);
 
     let items_to_copy = match &extraction {
-        FileExtraction::Binary { copy_as: filename } => vec![ItemToCopy {
+        FileExtraction::Binary { copy_as } => vec![ItemToCopy {
             extracted_path: dl_file_path,
-            file_type: FileNature::Binary {
-                copy_as: filename.clone(),
-            },
+            bin_name: copy_as.to_owned(),
         }],
 
         FileExtraction::Archive { format, files } => {
@@ -102,7 +98,12 @@ pub fn install_package(options: InstallPackageOptions) -> Result<InstalledPackag
 
                     out.push(ItemToCopy {
                         extracted_path: extracted_path.clone(),
-                        file_type: file.nature.clone(),
+                        bin_name: Path::new(&path_str)
+                            .file_name()
+                            .unwrap()
+                            .to_str()
+                            .unwrap()
+                            .to_owned(),
                     });
 
                     treated[i] = Some(path_str.replace('/', MAIN_SEPARATOR_STR));
@@ -129,41 +130,28 @@ pub fn install_package(options: InstallPackageOptions) -> Result<InstalledPackag
 
     for item in &items_to_copy {
         debug!(
-            "{}",
-            match &item.file_type {
-                FileNature::Binary { copy_as } => format!("Copying binary: {copy_as}..."),
-                FileNature::Library { name } => format!("Copying library: {name}..."),
-                FileNature::IsolatedDir { name } =>
-                    format!("Copying isolated directory '{name}'..."),
-            }
+            "Copy binary '{}' from {}...",
+            item.bin_name,
+            item.extracted_path.display()
         );
 
-        let (out_path, is_dir) = match &item.file_type {
-            FileNature::Binary { copy_as } => (bin_dir.join(copy_as), false),
-            FileNature::Library { name } => (bin_dir.join(name), false),
-            FileNature::IsolatedDir { name } => (isolated_dir.join(&pkg.name).join(name), true),
-        };
+        let out_path = bin_dir.join(&item.bin_name);
 
-        if !is_dir {
-            fs::copy(&item.extracted_path, &out_path).with_context(|| {
-                format!(
-                    "Failed to copy file '{}' to the binaries directory",
-                    out_path.file_name().unwrap().to_string_lossy()
-                )
-            })?;
+        fs::copy(&item.extracted_path, &out_path).with_context(|| {
+            format!(
+                "Failed to copy file '{}' to the binaries directory",
+                out_path.file_name().unwrap().to_string_lossy()
+            )
+        })?;
 
-            #[cfg(target_family = "unix")]
-            {
-                use std::os::unix::fs::PermissionsExt;
+        #[cfg(target_family = "unix")]
+        {
+            use std::os::unix::fs::PermissionsExt;
 
-                debug!("Setting file permissions...");
+            debug!("Setting file permissions...");
 
-                fs::set_permissions(&out_path, std::fs::Permissions::from_mode(0o755))
-                    .context("Failed to write file's new metadata (updated permissions)")?;
-            }
-        } else {
-            // TODO: show progress bar
-            copy_dir(&item.extracted_path, &out_path)?;
+            fs::set_permissions(&out_path, std::fs::Permissions::from_mode(0o755))
+                .context("Failed to write file's new metadata (updated permissions)")?;
         }
     }
 
@@ -174,40 +162,17 @@ pub fn install_package(options: InstallPackageOptions) -> Result<InstalledPackag
         at: SystemTime::now(),
         binaries: items_to_copy
             .iter()
-            .filter_map(|file| match &file.file_type {
-                FileNature::Binary { copy_as } => Some(copy_as.clone()),
-                FileNature::Library { name: _ } => None,
-                FileNature::IsolatedDir { name: _ } => None,
-            })
-            .collect(),
-
-        libraries: items_to_copy
-            .iter()
-            .filter_map(|file| match &file.file_type {
-                FileNature::Binary { copy_as: _ } => None,
-                FileNature::Library { name } => Some(name.clone()),
-                FileNature::IsolatedDir { name: _ } => None,
-            })
-            .collect(),
-
-        data_dirs: items_to_copy
-            .iter()
-            .filter_map(|file| match &file.file_type {
-                FileNature::Binary { copy_as: _ } => None,
-                FileNature::Library { name: _ } => None,
-                FileNature::IsolatedDir { name } => Some(name.clone()),
-            })
+            .map(|item| item.bin_name.clone())
             .collect(),
     })
 }
 
-pub struct InstallPackagesOptions<'a, 'b, 'c, 'd, 'e, 'f> {
+pub struct InstallPackagesOptions<'a, 'b, 'c, 'd, 'e> {
     pub bin_dir: &'a Path,
-    pub isolated_dir: &'b Path,
-    pub app_state: &'c mut AppState,
-    pub state_file_path: &'d Path,
-    pub repositories: &'e Repositories,
-    pub names: &'f [String],
+    pub app_state: &'b mut AppState,
+    pub state_file_path: &'c Path,
+    pub repositories: &'d Repositories,
+    pub names: &'e [String],
     pub confirm: bool,
     pub ignore_installed: bool,
     pub quiet: bool,
@@ -216,7 +181,6 @@ pub struct InstallPackagesOptions<'a, 'b, 'c, 'd, 'e, 'f> {
 pub fn install_packages(
     InstallPackagesOptions {
         bin_dir,
-        isolated_dir,
         app_state,
         state_file_path,
         repositories,
@@ -322,7 +286,6 @@ pub fn install_packages(
             &from_repo.content.name,
             asset_infos,
             bin_dir,
-            isolated_dir,
             progress_bar_tracker(),
         ) {
             Ok(data) => data,
@@ -378,7 +341,6 @@ pub fn update_packages(
     app_state: &mut AppState,
     repositories: &Repositories,
     bin_dir: &Path,
-    isolated_dir: &Path,
     names: &[String],
     force: bool,
 ) -> Result<()> {
@@ -464,7 +426,6 @@ pub fn update_packages(
             &repo.content.name,
             asset_infos,
             bin_dir,
-            isolated_dir,
             progress_bar_tracker(),
         ) {
             Ok(data) => data,
@@ -578,5 +539,5 @@ struct ResolvedPkg<'a> {
 pub struct ItemToCopy {
     // original_path: Option<String>,
     extracted_path: PathBuf,
-    file_type: FileNature,
+    bin_name: String,
 }

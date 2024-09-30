@@ -4,7 +4,7 @@ use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
 };
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Pattern {
     pub source: String,
     pub regex: Regex,

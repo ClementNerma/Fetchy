@@ -54,14 +54,13 @@ pub fn fetch_package_asset_infos(pkg: &Package) -> Result<AssetInfos> {
     }
 }
 
-pub fn fetch_package<'a, 'b, 'c, 'd>(
+pub fn fetch_package<'a, 'b, 'c>(
     pkg: &'a Package,
-    repo_name: &'d str,
+    repo_name: &'c str,
     asset: AssetInfos,
     bin_dir: &'b Path,
-    isolated_dir: &'c Path,
     pb: ProgressBar,
-) -> Result<InstallPackageOptions<'a, 'b, 'c, 'd>> {
+) -> Result<InstallPackageOptions<'a, 'b, 'c>> {
     let AssetInfos {
         url,
         version,
@@ -94,7 +93,6 @@ pub fn fetch_package<'a, 'b, 'c, 'd>(
         dl_file_path,
         tmp_dir,
         bin_dir,
-        isolated_dir,
         repo_name,
         version,
         extraction,

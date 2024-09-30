@@ -70,7 +70,6 @@ fn inner() -> Result<()> {
     }
 
     let bin_dir = app_data_dir.join("bin");
-    let isolated_dir = app_data_dir.join("isolated-data");
 
     let state_file_path = app_data_dir.join("state.json");
     let repositories_file_path = app_data_dir.join("repositories.json");
@@ -133,35 +132,6 @@ fn inner() -> Result<()> {
                 }
 
                 print!("{}", bin_dir.join(&installed.binaries[0]).display());
-            }
-
-            PathAction::ProgramData { name } => {
-                let app_state = app_state()?;
-
-                let installed = app_state
-                    .installed
-                    .iter()
-                    .find(|pkg| pkg.pkg_name == name)
-                    .with_context(|| format!("Provided package '{name}' was not found"))?;
-
-                if installed.data_dirs.is_empty() {
-                    bail!("Package '{name}' has no data dir");
-                }
-
-                if installed.data_dirs.len() > 1 {
-                    bail!(
-                        "Package '{name}' has more than one data dir: {}",
-                        installed.data_dirs.join(", ")
-                    );
-                }
-
-                print!(
-                    "{}",
-                    isolated_dir
-                        .join(&name)
-                        .join(&installed.data_dirs[0])
-                        .display()
-                );
             }
         },
 
@@ -288,7 +258,6 @@ fn inner() -> Result<()> {
 
             install_packages(InstallPackagesOptions {
                 bin_dir: &bin_dir,
-                isolated_dir: &isolated_dir,
                 app_state: &mut app_state,
                 state_file_path: &state_file_path,
                 repositories: &repositories()?,
@@ -308,7 +277,6 @@ fn inner() -> Result<()> {
 
             install_packages(InstallPackagesOptions {
                 bin_dir: &bin_dir,
-                isolated_dir: &isolated_dir,
                 app_state: &mut app_state()?,
                 state_file_path: &state_file_path,
                 repositories: &repositories,
@@ -348,8 +316,6 @@ fn inner() -> Result<()> {
                 version,
                 at: _,
                 binaries,
-                libraries,
-                data_dirs,
             } in installed
             {
                 print!(
@@ -368,22 +334,6 @@ fn inner() -> Result<()> {
                     print!("{}", bin.bright_green().underline());
                 }
 
-                for (i, bin) in libraries.iter().enumerate() {
-                    if i > 0 || !binaries.is_empty() {
-                        print!(", ");
-                    }
-
-                    print!("{}", bin.bright_yellow().underline());
-                }
-
-                for (i, dir) in data_dirs.iter().enumerate() {
-                    if i > 0 || !binaries.is_empty() || !libraries.is_empty() {
-                        print!(", ");
-                    }
-
-                    print!("{}", dir.bright_blue());
-                }
-
                 println!();
             }
         }
@@ -392,14 +342,7 @@ fn inner() -> Result<()> {
             let mut app_state = app_state()?;
             let repositories = repositories()?;
 
-            let result = update_packages(
-                &mut app_state,
-                &repositories,
-                &bin_dir,
-                &isolated_dir,
-                &names,
-                force,
-            );
+            let result = update_packages(&mut app_state, &repositories, &bin_dir, &names, force);
 
             save_app_state(&state_file_path, &app_state)?;
 
