@@ -53,9 +53,15 @@ pub fn repository() -> impl Parser<Repository> {
     let single_file_extraction = just("bin")
         .ignore_then(s.critical_with_no_message())
         .ignore_then(pattern.critical("expected a pattern"))
-        .map(|relative_path| BinaryExtraction {
+        .then(
+            s.ignore_then(just("as"))
+                .ignore_then(s.critical_with_no_message())
+                .ignore_then(string.critical("expected a name for the binary file"))
+                .or_not(),
+        )
+        .map(|(relative_path, rename)| BinaryExtraction {
             relative_path,
-            rename: None,
+            rename,
         });
 
     let archive_format = choice::<_, ArchiveFormat>((

@@ -98,12 +98,14 @@ pub fn install_package(options: InstallPackageOptions) -> Result<InstalledPackag
 
                     out.push(ItemToCopy {
                         extracted_path: extracted_path.clone(),
-                        bin_name: Path::new(&path_str)
-                            .file_name()
-                            .unwrap()
-                            .to_str()
-                            .unwrap()
-                            .to_owned(),
+                        bin_name: file.rename.clone().unwrap_or_else(|| {
+                            Path::new(&path_str)
+                                .file_name()
+                                .unwrap()
+                                .to_str()
+                                .unwrap()
+                                .to_owned()
+                        }),
                     });
 
                     treated[i] = Some(path_str.replace('/', MAIN_SEPARATOR_STR));
