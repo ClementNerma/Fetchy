@@ -59,7 +59,7 @@ fn inner() -> Result<()> {
 
     let app_data_dir = match std::env::var_os("FETCHY_DATA_DIR") {
         Some(path) => PathBuf::from(path),
-        None => dirs::data_local_dir()
+        None => dirs::state_dir()
             .context("Failed to get path to local data directory")?
             .join("fetchy"),
     };
