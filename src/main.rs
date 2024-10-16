@@ -268,7 +268,7 @@ fn inner() -> Result<()> {
             })?;
         }
 
-        Action::Install(InstallArgs { names }) => {
+        Action::Install(InstallArgs { names, force }) => {
             let repositories = repositories()?;
 
             if repositories.list.is_empty() {
@@ -282,7 +282,7 @@ fn inner() -> Result<()> {
                 repositories: &repositories,
                 names: &names,
                 confirm: false,
-                ignore_installed: false,
+                ignore_installed: !force,
                 quiet: args.quiet,
             })?;
         }

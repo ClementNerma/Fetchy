@@ -104,6 +104,13 @@ pub struct SearchArgs {
 pub struct InstallArgs {
     #[clap(help = "Name of the package(s) to install")]
     pub names: Vec<String>,
+
+    #[clap(
+        short,
+        long,
+        help = "Install packages even if they are already installed"
+    )]
+    pub force: bool,
 }
 
 #[derive(Args)]
