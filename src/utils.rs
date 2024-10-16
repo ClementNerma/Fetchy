@@ -1,11 +1,10 @@
 use std::{
-    fmt::Write,
     fs,
     path::{Path, PathBuf},
 };
 
 use anyhow::{bail, Context, Result};
-use indicatif::{ProgressBar, ProgressState, ProgressStyle};
+use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::warn;
 
@@ -43,17 +42,14 @@ pub fn read_dir_tree(dir: &Path) -> Result<Vec<PathBuf>> {
     Ok(out)
 }
 
-pub fn progress_bar_tracker() -> ProgressBar {
-    ProgressBar::new(0)
-    .with_style(
-        ProgressStyle::with_template(
-            "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})",
-        )
+pub fn progress_bar(len: usize, progress_style: &str) -> ProgressBar {
+    ProgressBar::new(u64::try_from(len).unwrap()).with_style(
+        ProgressStyle::with_template(&format!(
+            "{}{progress_style}{}",
+            "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] ", "{eta_precise} {msg}"
+        ))
         .unwrap()
-        .with_key("eta", |state: &ProgressState, w: &mut dyn Write| {
-            write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap()
-        })
-        .progress_chars("#>-")
+        .progress_chars("#>-"),
     )
 }
 

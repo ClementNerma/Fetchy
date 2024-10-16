@@ -35,9 +35,6 @@ pub enum Action {
     #[clap(about = "List installed packages")]
     Installed(InstalledArgs),
 
-    #[clap(about = "Require some packages to be installed")]
-    Require(RequireArgs),
-
     #[clap(about = "Update installed packages")]
     Update(UpdateArgs),
 
@@ -129,21 +126,9 @@ pub enum PkgSortBy {
 }
 
 #[derive(Args)]
-pub struct RequireArgs {
-    #[clap(help = "Name of the package(s) to install")]
-    pub names: Vec<String>,
-
-    #[clap(short, long, help = "Ask for confirmation before installing")]
-    pub confirm: bool,
-}
-
-#[derive(Args)]
 pub struct UpdateArgs {
     #[clap(help = "List of packages to update (all if none provided)")]
     pub names: Vec<String>,
-
-    #[clap(short, long, help = "Force update even if no update was detected")]
-    pub force: bool,
 }
 
 #[derive(Args)]

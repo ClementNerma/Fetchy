@@ -15,14 +15,12 @@ use glob::Pattern;
 use openssl_sys as _;
 
 use self::{
-    app_data::{AppState, InstalledPackage, Repositories},
+    app_data::{AppState, InstalledPackage, Repositories, RepositorySource, SourcedRepository},
     cmd::*,
     fetcher::fetch_repository,
-    installer::{install_packages, update_packages, InstallPackagesOptions},
+    installer::{install_packages, InstallPackagesOptions, InstalledPackagesAction},
     logging::PRINT_DEBUG_MESSAGES,
-    repository::Package,
 };
-use crate::app_data::{RepositorySource, SourcedRepository};
 
 mod app_data;
 mod arch;
@@ -34,7 +32,7 @@ mod logging;
 mod parser;
 mod pattern;
 mod repository;
-mod selector;
+mod resolver;
 mod sources;
 mod utils;
 
@@ -253,21 +251,6 @@ fn inner() -> Result<()> {
             }
         }
 
-        Action::Require(RequireArgs { names, confirm }) => {
-            let mut app_state = app_state()?;
-
-            install_packages(InstallPackagesOptions {
-                bin_dir: &bin_dir,
-                app_state: &mut app_state,
-                state_file_path: &state_file_path,
-                repositories: &repositories()?,
-                names: &names,
-                confirm,
-                ignore_installed: true,
-                quiet: true,
-            })?;
-        }
-
         Action::Install(InstallArgs { names, force }) => {
             let repositories = repositories()?;
 
@@ -281,8 +264,11 @@ fn inner() -> Result<()> {
                 state_file_path: &state_file_path,
                 repositories: &repositories,
                 names: &names,
-                confirm: false,
-                ignore_installed: !force,
+                for_already_installed: if force {
+                    InstalledPackagesAction::Reinstall
+                } else {
+                    InstalledPackagesAction::CheckUpdates
+                },
                 quiet: args.quiet,
             })?;
         }
@@ -338,15 +324,28 @@ fn inner() -> Result<()> {
             }
         }
 
-        Action::Update(UpdateArgs { names, force }) => {
+        Action::Update(UpdateArgs { names }) => {
             let mut app_state = app_state()?;
-            let repositories = repositories()?;
 
-            let result = update_packages(&mut app_state, &repositories, &bin_dir, &names, force);
+            let names = if names.is_empty() {
+                app_state
+                    .installed
+                    .iter()
+                    .map(|pkg| pkg.pkg_name.clone())
+                    .collect()
+            } else {
+                names
+            };
 
-            save_app_state(&state_file_path, &app_state)?;
-
-            result?;
+            install_packages(InstallPackagesOptions {
+                bin_dir: &bin_dir,
+                app_state: &mut app_state,
+                state_file_path: &state_file_path,
+                repositories: &repositories()?,
+                names: &names,
+                for_already_installed: InstalledPackagesAction::Update,
+                quiet: args.quiet,
+            })?;
         }
 
         Action::Uninstall(UninstallArgs { name }) => {
@@ -375,23 +374,6 @@ fn inner() -> Result<()> {
     }
 
     Ok(())
-}
-
-fn find_matching_packages<'a>(
-    repos: &'a Repositories,
-    name: &str,
-) -> Vec<(&'a SourcedRepository, &'a Package)> {
-    repos
-        .list
-        .iter()
-        .flat_map(|repo| {
-            repo.content
-                .packages
-                .iter()
-                .filter(|package| package.name == name)
-                .map(move |package| (repo, package))
-        })
-        .collect()
 }
 
 fn save_app_state(state_file_path: &Path, app_state: &AppState) -> Result<()> {

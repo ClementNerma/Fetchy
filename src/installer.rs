@@ -10,16 +10,15 @@ use dialoguer::Select;
 use tempfile::TempDir;
 
 use crate::{
-    app_data::{AppState, InstalledPackage, Repositories, SourcedRepository},
+    app_data::{AppState, InstalledPackage, Repositories},
     archives::extract_archive,
-    debug, error, error_anyhow,
-    fetcher::{fetch_package, fetch_package_asset_infos},
-    find_matching_packages, info,
+    debug, error_anyhow,
+    fetcher::{fetch_package, AssetInfos},
+    info,
     repository::{FileExtraction, Package},
-    save_app_state,
-    selector::find_installed_packages,
-    success,
-    utils::{progress_bar_tracker, read_dir_tree},
+    resolver::{build_install_phases, InstallPhases, ResolvedPkg},
+    save_app_state, success,
+    utils::{progress_bar, read_dir_tree},
 };
 
 pub struct InstallPackageOptions<'a, 'b, 'c> {
@@ -179,9 +178,15 @@ pub struct InstallPackagesOptions<'a, 'b, 'c, 'd, 'e> {
     pub state_file_path: &'c Path,
     pub repositories: &'d Repositories,
     pub names: &'e [String],
-    pub confirm: bool,
-    pub ignore_installed: bool,
+    pub for_already_installed: InstalledPackagesAction,
     pub quiet: bool,
+}
+
+#[derive(Clone, Copy)]
+pub enum InstalledPackagesAction {
+    CheckUpdates,
+    Update,
+    Reinstall,
 }
 
 pub fn install_packages(
@@ -191,57 +196,73 @@ pub fn install_packages(
         state_file_path,
         repositories,
         names,
-        confirm,
-        ignore_installed,
+        for_already_installed,
         quiet,
     }: InstallPackagesOptions,
 ) -> Result<()> {
-    let mut to_install: Vec<ResolvedPkg> = vec![];
+    let InstallPhases {
+        already_installed,
+        no_update_needed,
+        update_available,
+        update,
+        install_new,
+        install_deps,
+        reinstall,
+    } = build_install_phases(names, repositories, for_already_installed, app_state)?;
 
-    for name in names {
-        for resolved in find_package_with_dependencies(name, repositories)? {
-            let is_dup = to_install
-                .iter()
-                .any(|c| c.package.name == resolved.package.name);
+    let install_count = update.len() + install_new.len() + install_deps.len() + reinstall.len();
 
-            if is_dup {
-                continue;
-            }
-
-            if ignore_installed || resolved.dependency_of.is_some() {
-                let already_installed = app_state
-                    .installed
-                    .iter()
-                    .any(|pkg| pkg.pkg_name == resolved.package.name);
-
-                if already_installed {
-                    continue;
-                }
-            }
-
-            to_install.push(resolved);
-        }
-    }
-
-    if to_install.is_empty() {
-        if !quiet {
-            success!("Nothing to install!");
-        }
-
+    if install_count == 0 && quiet {
         return Ok(());
     }
 
-    let total = to_install.len();
-    let yellow_len = total.to_string().bright_yellow();
+    print_category(
+        "The following NEW package(s) will be installed",
+        install_new.iter().map(|(p, _)| *p),
+    );
 
-    if confirm {
+    print_category(
+        "The following dependency package(s) will be installed",
+        install_deps.iter().map(|(p, _)| *p),
+    );
+
+    print_category(
+        "The following package(s) will be updated",
+        update.iter().map(|(p, _)| *p),
+    );
+
+    print_category(
+        "The following existing package(s) will be *re*installed",
+        reinstall.iter().map(|(p, _)| *p),
+    );
+
+    print_category(
+        "The following package(s) have an available update",
+        update_available.iter().copied(),
+    );
+
+    if !quiet {
+        print_category(
+            "The following package(s) are already on their latest version",
+            no_update_needed.iter().copied(),
+        );
+
+        print_category(
+            "The following package(s) are already installed and require no action",
+            already_installed.iter().copied(),
+        );
+    }
+
+    if install_count == 0 {
+        success!("Nothing to install!");
+        return Ok(());
+    }
+
+    let yellow_len = install_count.to_string().bright_yellow();
+
+    if install_count > names.len() {
         let prompt = format!(
-            "Going to install {yellow_len} package(s):\n{}\n\nDo you want to continue?",
-            to_install
-                .iter()
-                .map(|resolved| format!("* {}", resolved.package.name.bright_yellow()))
-                .collect::<Vec<_>>()
-                .join("\n")
+            "|> Going to install a total {yellow_len} package(s)\n\nDo you want to continue?"
         )
         .bright_blue();
 
@@ -253,11 +274,46 @@ pub fn install_packages(
         if choice != 0 {
             bail!("Aborted by user.");
         }
+
+        println!();
     }
+
+    let to_install = install_new
+        .into_iter()
+        .chain(install_deps)
+        .chain(update)
+        .chain(reinstall)
+        .collect::<Vec<_>>();
+
+    perform_install(to_install, bin_dir, app_state, state_file_path)
+}
+
+fn print_category<'a>(name: &str, pkgs: impl ExactSizeIterator<Item = ResolvedPkg<'a>>) {
+    // Don't display categories with no package
+    if pkgs.len() == 0 {
+        return;
+    }
+
+    println!("{}\n", format!("{name}:").bright_blue());
+
+    for resolved in pkgs {
+        println!("* {}", resolved.package.name.bright_yellow());
+    }
+
+    println!();
+}
+
+fn perform_install(
+    to_install: Vec<(ResolvedPkg, AssetInfos)>,
+    bin_dir: &Path,
+    app_state: &mut AppState,
+    state_file_path: &Path,
+) -> Result<()> {
+    let yellow_len = to_install.len().to_string().bright_yellow();
 
     let mut failed = 0;
 
-    for (i, resolved) in to_install.into_iter().enumerate() {
+    for (i, (resolved, asset_infos)) in to_install.into_iter().enumerate() {
         let ResolvedPkg {
             from_repo,
             package,
@@ -269,40 +325,21 @@ pub fn install_packages(
             package.name.bright_yellow(),
             from_repo.content.name.bright_magenta(),
             dependency_of
-                .map(|dependency_of| format!(
-                    " (as a dependency of {})",
-                    dependency_of.bright_yellow()
-                ))
+                .map(|dep_of| format!(" (as a dependency of {})", dep_of.bright_yellow()))
                 .unwrap_or_default(),
             (i + 1).to_string().bright_yellow(),
             yellow_len,
         );
 
-        let asset_infos = match fetch_package_asset_infos(package) {
-            Ok(data) => data,
-            Err(err) => {
-                error_anyhow!(err);
-                failed += 1;
-                continue;
-            }
-        };
-
-        let fetched = match fetch_package(
+        let fetched_result = fetch_package(
             package,
             &from_repo.content.name,
             asset_infos,
             bin_dir,
-            progress_bar_tracker(),
-        ) {
-            Ok(data) => data,
-            Err(err) => {
-                error_anyhow!(err);
-                failed += 1;
-                continue;
-            }
-        };
+            progress_bar(0, "{bytes}/{total_bytes}"),
+        );
 
-        let installed = match install_package(fetched) {
+        let installed = match fetched_result.and_then(install_package) {
             Ok(data) => data,
             Err(err) => {
                 error_anyhow!(err);
@@ -341,205 +378,6 @@ pub fn install_packages(
     }
 
     Ok(())
-}
-
-pub fn update_packages(
-    app_state: &mut AppState,
-    repositories: &Repositories,
-    bin_dir: &Path,
-    names: &[String],
-    force: bool,
-) -> Result<()> {
-    let mut to_update = find_installed_packages(app_state, names)?;
-    to_update.sort_by(|a, b| a.pkg_name.cmp(&b.pkg_name));
-
-    let yellow_len = to_update.len().to_string().bright_yellow();
-
-    let mut failed = 0;
-
-    for (i, installed) in to_update.into_iter().enumerate() {
-        info!(
-            "==> Updating package {} [from repo {}] ({} / {})...",
-            installed.pkg_name.bright_yellow(),
-            installed.repo_name.bright_magenta(),
-            (i + 1).to_string().bright_yellow(),
-            yellow_len,
-        );
-
-        let repo = match repositories
-            .list
-            .iter()
-            .find(|repo| repo.content.name == installed.repo_name)
-        {
-            Some(data) => data,
-            None => {
-                failed += 1;
-                error!(
-                    "Package {} comes from unregistered repository {}, cannot update.",
-                    installed.pkg_name, installed.repo_name
-                );
-                continue;
-            }
-        };
-
-        let Some(pkg) = repo
-            .content
-            .packages
-            .iter()
-            .find(|candidate| candidate.name == installed.pkg_name)
-        else {
-            info!(
-                " |> Package {} is installed {}\n",
-                installed.pkg_name.bright_blue(),
-                "but does not seem to exist anymore in this repository".bright_yellow()
-            );
-            continue;
-        };
-
-        let asset_infos = match fetch_package_asset_infos(pkg) {
-            Ok(data) => data,
-            Err(err) => {
-                error_anyhow!(err);
-                failed += 1;
-                continue;
-            }
-        };
-
-        if asset_infos.version == installed.version {
-            if !force {
-                info!(
-                    " |> Package is already up-to-date (version {}), skipping.\n",
-                    installed.version.bright_yellow()
-                );
-
-                continue;
-            }
-
-            info!(
-                "|> Package is already up-to-date ({}), reinstalling anyway as requested...",
-                installed.version.bright_yellow()
-            );
-        } else {
-            info!(
-                "|> Updating from version {} to version {}...",
-                installed.version.bright_yellow(),
-                asset_infos.version.bright_yellow(),
-            );
-        }
-
-        let fetched = match fetch_package(
-            pkg,
-            &repo.content.name,
-            asset_infos,
-            bin_dir,
-            progress_bar_tracker(),
-        ) {
-            Ok(data) => data,
-            Err(err) => {
-                error_anyhow!(err);
-                failed += 1;
-                continue;
-            }
-        };
-
-        *installed = match install_package(fetched) {
-            Ok(data) => data,
-            Err(err) => {
-                error_anyhow!(err);
-                failed += 1;
-                continue;
-            }
-        };
-
-        info!(" |> Success.",);
-
-        println!();
-    }
-
-    if failed > 0 {
-        bail!("{} error(s) occurred.", failed.to_string().bright_yellow());
-    }
-
-    Ok(())
-}
-
-fn find_package<'a>(
-    name: &str,
-    repositories: &'a Repositories,
-) -> Result<(&'a SourcedRepository, &'a Package)> {
-    let candidates = find_matching_packages(repositories, name);
-
-    if candidates.len() > 1 {
-        bail!(
-            "Multiple candidates found for this package:\n{}",
-            candidates
-                .iter()
-                .map(|(repo, pkg)| format!(
-                    "* {} (from repository {})",
-                    pkg.name.bright_yellow(),
-                    repo.content.name.bright_magenta()
-                ))
-                .collect::<Vec<_>>()
-                .join("\n")
-        );
-    }
-
-    candidates
-        .into_iter()
-        .next()
-        .with_context(|| format!("Package {} was not found", name.bright_yellow()))
-}
-
-fn find_package_with_dependencies<'a>(
-    name: &str,
-    repositories: &'a Repositories,
-) -> Result<Vec<ResolvedPkg<'a>>> {
-    let (from_repo, package) = find_package(name, repositories)?;
-
-    let mut out = vec![ResolvedPkg {
-        from_repo,
-        package,
-        dependency_of: None,
-    }];
-
-    out.append(&mut resolve_package_dependencies(package, repositories)?);
-
-    Ok(out)
-}
-
-fn resolve_package_dependencies<'a>(
-    package: &'a Package,
-    repositories: &'a Repositories,
-) -> Result<Vec<ResolvedPkg<'a>>> {
-    let mut out = vec![];
-
-    for dep in package.depends_on.as_ref().unwrap_or(&vec![]) {
-        let (from_repo, dep_pkg) = find_package(dep, repositories).with_context(|| {
-            format!(
-                "Failed to find package '{dep}' which is a dependency of '{}'",
-                package.name
-            )
-        })?;
-
-        let mut resolved = resolve_package_dependencies(dep_pkg, repositories)?;
-
-        out.push(ResolvedPkg {
-            from_repo,
-            package: dep_pkg,
-            dependency_of: Some(&package.name),
-        });
-
-        out.append(&mut resolved);
-    }
-
-    Ok(out)
-}
-
-#[derive(Clone, Copy)]
-struct ResolvedPkg<'a> {
-    from_repo: &'a SourcedRepository,
-    package: &'a Package,
-    dependency_of: Option<&'a str>,
 }
 
 pub struct ItemToCopy {
