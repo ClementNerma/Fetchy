@@ -31,7 +31,7 @@ impl Serialize for Pattern {
 
 struct RegexVisitor;
 
-impl<'de> Visitor<'de> for RegexVisitor {
+impl Visitor<'_> for RegexVisitor {
     type Value = Pattern;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
