@@ -113,6 +113,10 @@ pub fn install_package(options: InstallPackageOptions) -> Result<InstalledPackag
             }
 
             if let Some(pos) = treated.iter().position(Option::is_none) {
+                if archive_files.is_empty() {
+                    bail!("Archive is empty!");
+                }
+
                 bail!(
                     "No entry matched the file regex ({}) in the archive. Contained files are:\n{}",
                     files[pos].relative_path.source,
