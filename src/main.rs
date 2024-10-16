@@ -267,7 +267,7 @@ fn inner() -> Result<()> {
                 for_already_installed: if force {
                     InstalledPackagesAction::Reinstall
                 } else {
-                    InstalledPackagesAction::CheckUpdates
+                    InstalledPackagesAction::Ignore
                 },
                 quiet: args.quiet,
             })?;

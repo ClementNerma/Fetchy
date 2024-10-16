@@ -75,15 +75,8 @@ pub fn build_install_phases<'a>(
 
                 // Already installed normal package
                 (Some(already_installed), None) => match for_already_installed {
-                    InstalledPackagesAction::CheckUpdates => {
-                        // Show if there's an update and that's all
-                        let infos = fetch_package_asset_infos(resolved.package)?;
-
-                        if infos.version == already_installed.version {
-                            phases.no_update_needed.push(resolved);
-                        } else {
-                            phases.update_available.push(resolved);
-                        }
+                    InstalledPackagesAction::Ignore => {
+                        phases.already_installed.push(resolved);
                     }
 
                     InstalledPackagesAction::Update => {

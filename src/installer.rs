@@ -184,7 +184,7 @@ pub struct InstallPackagesOptions<'a, 'b, 'c, 'd, 'e> {
 
 #[derive(Clone, Copy)]
 pub enum InstalledPackagesAction {
-    CheckUpdates,
+    Ignore,
     Update,
     Reinstall,
 }
