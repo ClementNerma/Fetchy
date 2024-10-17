@@ -40,29 +40,28 @@ pub fn build_install_phases<'a>(
         .map(|name| resolve_package_with_dependencies(name, repositories))
         .collect::<Result<Vec<_>, _>>()?;
 
+    let mut handled = HashSet::new();
+
+    let resolved_with_deps = resolved_with_deps
+        .into_iter()
+        .flatten()
+        // Dependencies are treated differently than normal packages
+        // Unless they're specified as part of the list of packages to install
+        .filter(|resolved| {
+            resolved.dependency_of.is_none() || !names.contains(&resolved.package.name)
+        })
+        // Ensure we don't handle a package twice
+        // (duplicate name or same dependency for two packages for instance)
+        .filter(|resolved| handled.insert(&resolved.package.name))
+        .collect::<Vec<_>>();
+
     let pb = progress_bar(resolved_with_deps.len(), "{pos:>2}/{len:2}");
 
-    let handled = Arc::new(Mutex::new(HashSet::new()));
-
     let phases = Arc::new(Mutex::new(InstallPhases::default()));
-    let phases_bis = Arc::clone(&phases);
 
     resolved_with_deps
         .into_par_iter()
-        .flatten()
         .map(|resolved: ResolvedPkg| -> Result<()> {
-            // Dependencies are treated differently than normal packages
-            // Unless they're specified as part of the list of packages to install
-            if resolved.dependency_of.is_some() && names.contains(&resolved.package.name) {
-                return Ok(());
-            }
-
-            // Ensure we don't handle a package twice
-            // (duplicate name or same dependency for two packages for instance)
-            if !handled.lock().unwrap().insert(&resolved.package.name) {
-                return Ok(());
-            }
-
             // Check if the package is already installed
             let already_installed = app_state
                 .installed
@@ -124,7 +123,7 @@ pub fn build_install_phases<'a>(
 
     pb.finish_and_clear();
 
-    Ok(Arc::try_unwrap(phases_bis)
+    Ok(Arc::try_unwrap(phases)
         .map_err(|_| anyhow!("failed to unwrap Arc"))?
         .into_inner()
         .unwrap())

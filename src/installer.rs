@@ -294,13 +294,16 @@ fn print_category<'a>(name: &str, pkgs: impl ExactSizeIterator<Item = ResolvedPk
         return;
     }
 
-    println!("{}\n", format!("{name}:").bright_blue());
+    let pkgs_table = pkgs
+        .enumerate()
+        .fold(String::new(), |mut acc, (i, resolved)| {
+            acc.push(if i % 10 == 0 && i > 0 { '\n' } else { ' ' });
+            acc.push_str(&resolved.package.name);
+            acc
+        })
+        .bright_yellow();
 
-    for resolved in pkgs {
-        println!("* {}", resolved.package.name.bright_yellow());
-    }
-
-    println!();
+    println!("{}\n\n{pkgs_table}\n", format!("{name}:").bright_blue(),);
 }
 
 fn perform_install(
