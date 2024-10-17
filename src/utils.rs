@@ -46,7 +46,7 @@ pub fn progress_bar(len: usize, progress_style: &str) -> ProgressBar {
     ProgressBar::new(u64::try_from(len).unwrap()).with_style(
         ProgressStyle::with_template(&format!(
             "{}{progress_style}{}",
-            "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] ", "{eta_precise} {msg}"
+            "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] ", " {eta_precise} {msg}"
         ))
         .unwrap()
         .progress_chars("#>-"),
