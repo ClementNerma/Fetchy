@@ -8,7 +8,7 @@ use colored::Colorize;
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
 use crate::{
-    app_data::{AppState, Repositories, SourcedRepository},
+    app_data::{AppData, Repositories, SourcedRepository},
     fetcher::{fetch_package_asset_infos, AssetInfos},
     installer::InstalledPackagesAction,
     repository::Package,
@@ -30,7 +30,7 @@ pub fn build_install_phases<'a>(
     names: &[String],
     repositories: &'a Repositories,
     for_already_installed: InstalledPackagesAction,
-    app_state: &AppState,
+    app_state: &AppData,
 ) -> Result<InstallPhases<'a>> {
     let resolved_with_deps = names
         .par_iter()

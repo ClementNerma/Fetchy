@@ -1,7 +1,4 @@
-use std::{
-    fs::{self, File},
-    path::Path,
-};
+use std::fs::{self, File};
 
 use anyhow::{anyhow, bail, Context, Result};
 use indicatif::ProgressBar;
@@ -14,6 +11,7 @@ use crate::{
     parser::repository,
     repository::{DownloadSource, FileExtraction, Package, Repository},
     sources::{direct::DirectSource, github::GitHubSource, AssetSource},
+    AppState,
 };
 
 pub fn fetch_repository(repo: &RepositorySource) -> Result<Repository> {
@@ -58,7 +56,7 @@ pub fn fetch_package<'a, 'b, 'c>(
     pkg: &'a Package,
     repo_name: &'c str,
     asset: AssetInfos,
-    bin_dir: &'b Path,
+    state: &'b AppState,
     pb: ProgressBar,
 ) -> Result<InstallPackageOptions<'a, 'b, 'c>> {
     let AssetInfos {
@@ -92,7 +90,7 @@ pub fn fetch_package<'a, 'b, 'c>(
         pkg,
         dl_file_path,
         tmp_dir,
-        bin_dir,
+        bin_dir: &state.bin_dir,
         repo_name,
         version,
         extraction,

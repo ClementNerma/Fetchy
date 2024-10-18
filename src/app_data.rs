@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::repository::Repository;
 
 #[derive(Default, Serialize, Deserialize)]
-pub struct AppState {
+pub struct AppData {
     pub installed: Vec<InstalledPackage>,
 }
 

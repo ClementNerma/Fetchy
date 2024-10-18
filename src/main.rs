@@ -16,10 +16,10 @@ use glob::Pattern;
 use openssl_sys as _;
 
 use self::{
-    app_data::{AppState, InstalledPackage, Repositories, RepositorySource, SourcedRepository},
+    app_data::{AppData, InstalledPackage, Repositories, RepositorySource, SourcedRepository},
     cmd::*,
     fetcher::fetch_repository,
-    installer::{install_packages, InstallPackagesOptions, InstalledPackagesAction},
+    installer::{install_packages, InstalledPackagesAction},
     logging::PRINT_DEBUG_MESSAGES,
 };
 
@@ -36,6 +36,13 @@ mod repository;
 mod resolver;
 mod sources;
 mod utils;
+
+#[derive(Debug)]
+pub struct AppState {
+    pub bin_dir: PathBuf,
+    pub state_file_path: PathBuf,
+    pub quiet: bool,
+}
 
 fn main() -> ExitCode {
     match inner() {
@@ -76,15 +83,15 @@ fn inner() -> Result<()> {
         fs::create_dir(&bin_dir).context("Failed to create the binaries directory")?;
     }
 
-    let app_state = || -> Result<AppState> {
+    let app_data = || -> Result<AppData> {
         if state_file_path.exists() {
             let json = fs::read_to_string(&state_file_path)
                 .context("Failed to read application's data file")?;
 
-            Ok(serde_json::from_str::<AppState>(&json)
+            Ok(serde_json::from_str::<AppData>(&json)
                 .context("Failed to parse application's data file")?)
         } else {
-            Ok(AppState::default())
+            Ok(AppData::default())
         }
     };
 
@@ -100,6 +107,13 @@ fn inner() -> Result<()> {
         }
     };
 
+    // Initialize global state
+    let state = AppState {
+        bin_dir: bin_dir.clone(),
+        state_file_path: state_file_path.clone(),
+        quiet: args.quiet,
+    };
+
     match args.action {
         Action::Path(action) => match action {
             PathAction::Binaries => print!(
@@ -110,7 +124,7 @@ fn inner() -> Result<()> {
             ),
 
             PathAction::ProgramBinary { name } => {
-                let app_state = app_state()?;
+                let app_state = app_data()?;
 
                 let installed = app_state
                     .installed
@@ -228,7 +242,7 @@ fn inner() -> Result<()> {
                 .context("Failed to parse provided glob pattern")?;
 
             let repositories = repositories()?;
-            let app_state = app_state()?;
+            let app_state = app_data()?;
 
             let installable = repositories
                 .list
@@ -258,23 +272,21 @@ fn inner() -> Result<()> {
                 bail!("No repository found, please register one.");
             }
 
-            install_packages(InstallPackagesOptions {
-                bin_dir: &bin_dir,
-                app_state: &mut app_state()?,
-                state_file_path: &state_file_path,
-                repositories: &repositories,
-                names: &names,
-                for_already_installed: if force {
+            install_packages(
+                &repositories,
+                &names,
+                if force {
                     InstalledPackagesAction::Reinstall
                 } else {
                     InstalledPackagesAction::Ignore
                 },
-                quiet: args.quiet,
-            })?;
+                &mut app_data()?,
+                &state,
+            )?;
         }
 
         Action::Installed(InstalledArgs { sort_by, rev_sort }) => {
-            let app_state = app_state()?;
+            let app_state = app_data()?;
 
             let mut installed: Vec<_> = app_state.installed.iter().collect();
 
@@ -325,10 +337,10 @@ fn inner() -> Result<()> {
         }
 
         Action::Update(UpdateArgs { names }) => {
-            let mut app_state = app_state()?;
+            let mut app_data = app_data()?;
 
             let names = if names.is_empty() {
-                app_state
+                app_data
                     .installed
                     .iter()
                     .map(|pkg| pkg.pkg_name.clone())
@@ -337,19 +349,17 @@ fn inner() -> Result<()> {
                 names
             };
 
-            install_packages(InstallPackagesOptions {
-                bin_dir: &bin_dir,
-                app_state: &mut app_state,
-                state_file_path: &state_file_path,
-                repositories: &repositories()?,
-                names: &names,
-                for_already_installed: InstalledPackagesAction::Update,
-                quiet: args.quiet,
-            })?;
+            install_packages(
+                &repositories()?,
+                &names,
+                InstalledPackagesAction::Update,
+                &mut app_data,
+                &state,
+            )?;
         }
 
         Action::Uninstall(UninstallArgs { name }) => {
-            let mut app_state = app_state()?;
+            let mut app_state = app_data()?;
 
             let index = app_state
                 .installed
@@ -376,7 +386,7 @@ fn inner() -> Result<()> {
     Ok(())
 }
 
-fn save_app_state(state_file_path: &Path, app_state: &AppState) -> Result<()> {
+fn save_app_state(state_file_path: &Path, app_state: &AppData) -> Result<()> {
     debug!("Application's state changed, flushing to disk.");
 
     let app_data_str =

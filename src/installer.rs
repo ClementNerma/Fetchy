@@ -10,7 +10,7 @@ use dialoguer::Select;
 use tempfile::TempDir;
 
 use crate::{
-    app_data::{AppState, InstalledPackage, Repositories},
+    app_data::{AppData, InstalledPackage, Repositories},
     archives::extract_archive,
     debug, error_anyhow,
     fetcher::{fetch_package, AssetInfos},
@@ -19,6 +19,7 @@ use crate::{
     resolver::{build_install_phases, InstallPhases, ResolvedPkg},
     save_app_state, success,
     utils::{progress_bar, read_dir_tree},
+    AppState,
 };
 
 pub struct InstallPackageOptions<'a, 'b, 'c> {
@@ -172,16 +173,6 @@ pub fn install_package(options: InstallPackageOptions) -> Result<InstalledPackag
     })
 }
 
-pub struct InstallPackagesOptions<'a, 'b, 'c, 'd, 'e> {
-    pub bin_dir: &'a Path,
-    pub app_state: &'b mut AppState,
-    pub state_file_path: &'c Path,
-    pub repositories: &'d Repositories,
-    pub names: &'e [String],
-    pub for_already_installed: InstalledPackagesAction,
-    pub quiet: bool,
-}
-
 #[derive(Clone, Copy)]
 pub enum InstalledPackagesAction {
     Ignore,
@@ -190,15 +181,11 @@ pub enum InstalledPackagesAction {
 }
 
 pub fn install_packages(
-    InstallPackagesOptions {
-        bin_dir,
-        app_state,
-        state_file_path,
-        repositories,
-        names,
-        for_already_installed,
-        quiet,
-    }: InstallPackagesOptions,
+    repositories: &Repositories,
+    names: &[String],
+    for_already_installed: InstalledPackagesAction,
+    app_data: &mut AppData,
+    state: &AppState,
 ) -> Result<()> {
     let InstallPhases {
         already_installed,
@@ -208,11 +195,11 @@ pub fn install_packages(
         install_new,
         install_deps,
         reinstall,
-    } = build_install_phases(names, repositories, for_already_installed, app_state)?;
+    } = build_install_phases(names, repositories, for_already_installed, app_data)?;
 
     let install_count = update.len() + install_new.len() + install_deps.len() + reinstall.len();
 
-    if install_count == 0 && quiet {
+    if install_count == 0 && state.quiet {
         return Ok(());
     }
 
@@ -241,7 +228,7 @@ pub fn install_packages(
         update_available.iter().copied(),
     );
 
-    if !quiet {
+    if !state.quiet {
         print_category(
             "The following package(s) are already on their latest version",
             no_update_needed.iter().copied(),
@@ -285,7 +272,7 @@ pub fn install_packages(
         .chain(reinstall)
         .collect::<Vec<_>>();
 
-    perform_install(to_install, bin_dir, app_state, state_file_path)
+    perform_install(to_install, app_data, state)
 }
 
 fn print_category<'a>(name: &str, pkgs: impl ExactSizeIterator<Item = ResolvedPkg<'a>>) {
@@ -311,9 +298,8 @@ fn print_category<'a>(name: &str, pkgs: impl ExactSizeIterator<Item = ResolvedPk
 
 fn perform_install(
     to_install: Vec<(ResolvedPkg, AssetInfos)>,
-    bin_dir: &Path,
-    app_state: &mut AppState,
-    state_file_path: &Path,
+    app_data: &mut AppData,
+    state: &AppState,
 ) -> Result<()> {
     let yellow_len = to_install.len().to_string().bright_yellow();
 
@@ -341,7 +327,7 @@ fn perform_install(
             package,
             &from_repo.content.name,
             asset_infos,
-            bin_dir,
+            state,
             progress_bar(0, "{bytes}/{total_bytes}"),
         );
 
@@ -365,18 +351,18 @@ fn perform_install(
             installed.binaries.join(", ").bright_green().underline()
         );
 
-        let existing_index = app_state.installed.iter().position(|installed| {
+        let existing_index = app_data.installed.iter().position(|installed| {
             installed.repo_name == from_repo.content.name && installed.pkg_name == package.name
         });
 
         match existing_index {
-            Some(index) => app_state.installed[index] = installed,
-            None => app_state.installed.push(installed),
+            Some(index) => app_data.installed[index] = installed,
+            None => app_data.installed.push(installed),
         }
 
         println!();
 
-        save_app_state(state_file_path, app_state)?;
+        save_app_state(&state.state_file_path, app_data)?;
     }
 
     if failed > 0 {
