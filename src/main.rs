@@ -5,6 +5,7 @@
 use std::{
     fs,
     path::{Path, PathBuf},
+    process::ExitCode,
     sync::atomic::Ordering,
 };
 
@@ -36,15 +37,14 @@ mod resolver;
 mod sources;
 mod utils;
 
-fn main() {
-    if let Err(err) = inner() {
-        error!("{}", err.chain().next().unwrap());
+fn main() -> ExitCode {
+    match inner() {
+        Ok(()) => ExitCode::SUCCESS,
 
-        for error in err.chain().skip(1) {
-            error!("  {} {error}", "Caused by:".bright_yellow());
+        Err(err) => {
+            error!("{err:?}");
+            ExitCode::FAILURE
         }
-
-        std::process::exit(1);
     }
 }
 
