@@ -10,7 +10,6 @@ use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterato
 use crate::{
     app_data::{AppState, Repositories, SourcedRepository},
     fetcher::{fetch_package_asset_infos, AssetInfos},
-    info,
     installer::InstalledPackagesAction,
     repository::Package,
     utils::progress_bar,
@@ -33,8 +32,6 @@ pub fn build_install_phases<'a>(
     for_already_installed: InstalledPackagesAction,
     app_state: &AppState,
 ) -> Result<InstallPhases<'a>> {
-    info!("Fetching informations about packages...");
-
     let resolved_with_deps = names
         .par_iter()
         .map(|name| resolve_package_with_dependencies(name, repositories))
@@ -55,7 +52,8 @@ pub fn build_install_phases<'a>(
         .filter(|resolved| handled.insert(&resolved.package.name))
         .collect::<Vec<_>>();
 
-    let pb = progress_bar(resolved_with_deps.len(), "{pos:>2}/{len:2}");
+    let pb = progress_bar(resolved_with_deps.len(), "{pos:>2}/{len:2}")
+        .with_message("Fetching infos about packages...");
 
     let phases = Arc::new(Mutex::new(InstallPhases::default()));
 

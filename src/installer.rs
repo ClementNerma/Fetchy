@@ -297,7 +297,10 @@ fn print_category<'a>(name: &str, pkgs: impl ExactSizeIterator<Item = ResolvedPk
     let pkgs_table = pkgs
         .enumerate()
         .fold(String::new(), |mut acc, (i, resolved)| {
-            acc.push(if i % 10 == 0 && i > 0 { '\n' } else { ' ' });
+            if i > 0 {
+                acc.push(if i % 10 == 0 { '\n' } else { ' ' });
+            }
+
             acc.push_str(&resolved.package.name);
             acc
         })
