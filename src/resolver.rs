@@ -112,10 +112,8 @@ pub fn build_install_phases<'a>(
 
             Ok(())
         })
-        .inspect(|result| {
-            if result.is_ok() {
-                pb.inc(1);
-            }
+        .inspect(|_| {
+            pb.inc(1);
         })
         .collect::<Result<()>>()?;
 
