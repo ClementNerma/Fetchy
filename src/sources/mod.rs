@@ -1,4 +1,5 @@
 use anyhow::Result;
+use reqwest::header::{HeaderMap, HeaderValue};
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::ast_friendly;
@@ -10,13 +11,14 @@ pub mod github;
 pub mod pattern;
 
 pub trait AssetSource: Serialize + DeserializeOwned {
-    fn validate_params(&self) -> Vec<String>;
+    fn validate(&self) -> Vec<String>;
     async fn fetch_infos(&self) -> Result<AssetInfos>;
 }
 
 #[derive(Debug, Clone)]
 pub struct AssetInfos {
     pub url: String,
+    pub headers: HeaderMap<HeaderValue>,
     pub version: String,
     pub typ: AssetType,
 }

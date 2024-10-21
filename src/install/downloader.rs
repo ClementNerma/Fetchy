@@ -7,6 +7,7 @@ use std::{
 use anyhow::{Context, Result};
 use colored::Colorize;
 use indicatif::{MultiProgress, ProgressBar};
+use reqwest::Client;
 use tempfile::TempDir;
 use tokio::{fs::File, io::AsyncWriteExt, task::JoinSet};
 
@@ -106,7 +107,10 @@ async fn download_asset(
         .await
         .context("Failed to create temporary download file")?;
 
-    let mut res = reqwest::get(&asset_infos.url)
+    let mut res = Client::new()
+        .get(&asset_infos.url)
+        .headers(asset_infos.headers.clone())
+        .send()
         .await
         .context("Failed to perform GET request on asset's URL")?;
 

@@ -4,6 +4,12 @@ Fetchy is a dead-simple package manager that relies on web sources such as GitHu
 
 It is designed to be very simple to use, to not require any central platform for assets storage by enabling downloads from multiple sources, all while being fast and managing dependencies automatically.
 
+
+- [Features](#features)
+- [Step-by-step guide](#step-by-step-guide)
+- [Private packages on GitHub](#private-packages-on-github)
+- [Rate limiting](#rate-limiting)
+
 ## Features
 
 * Recursive dependencies management
@@ -58,3 +64,19 @@ If you want a more complete example, you can check the repository [I personally 
 For now, write this in a file somewhere, and run `fetchy add-repo <path to your file>`. It will be internally compiled, checked (any error will be reported to you) and added to the program's database.
 
 You can now install packages using `fetchy install <package>`. To remove them, run `fetchy uninstall <package>`. That's all!
+
+## Private packages on GitHub
+
+Fetchy can access your private packages on GitHub if you provide it with authentication data.
+
+First, [create a fine-grained personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#creating-a-fine-grained-personal-access-token) with the most limited set of permissions (just to get permissions to call the API more frequently).
+
+When calling Fetchy, set the `FETCHY_GITHUB_TOKEN` environment variable and it will be automatically [provided in the API calls](https://docs.github.com/en/rest/authentication/authenticating-to-the-rest-api?apiVersion=2022-11-28#authenticating-with-a-personal-access-token), enabling you to use your private repositories.
+
+## Rate limiting
+
+GitHub's API is [heavily rate limited](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api?apiVersion=2022-11-28) to prevent abuses. At the time of writing, 60 requests per hour.
+
+But because Fetchy calls the API to get informations about the latest release (for packages which are pulled from GitHub) this can make the requests fail when installing or updating a lot of packages.
+
+To prevent this, you need to [enable GitHub authentication](#private-packages-on-github), which will raise the API limit to 5000 requests per hour.

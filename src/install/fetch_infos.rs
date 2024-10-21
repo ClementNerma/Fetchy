@@ -5,7 +5,7 @@ use tokio::task::JoinSet;
 use crate::{
     repos::ast::{DownloadSource, PackageManifest},
     resolver::ResolvedPkg,
-    sources::{direct::DirectSource, github::GitHubSource, AssetInfos, AssetSource},
+    sources::{AssetInfos, AssetSource},
     utils::{join_fallible_ordered_set, progress_bar, ITEMS_PROGRESS_BAR_STYLE},
 };
 
@@ -26,8 +26,8 @@ pub async fn fetch_pkgs_infos(
 
         tasks.spawn(async move {
             let asset_infos = match &pkg.source {
-                DownloadSource::Direct(params) => DirectSource::fetch_infos(params).await,
-                DownloadSource::GitHub(params) => GitHubSource::fetch_infos(params).await,
+                DownloadSource::Direct(params) => params.fetch_infos().await,
+                DownloadSource::GitHub(params) => params.fetch_infos().await,
             };
 
             asset_infos

@@ -68,8 +68,8 @@ pub fn validate_repository(repo: &Repository) -> Result<(), Vec<String>> {
         }
 
         let param_errors = match source {
-            DownloadSource::Direct(params) => DirectSource::validate_params(params),
-            DownloadSource::GitHub(params) => GitHubSource::validate_params(params),
+            DownloadSource::Direct(params) => DirectSource::validate(params),
+            DownloadSource::GitHub(params) => GitHubSource::validate(params),
         };
 
         errors.extend(

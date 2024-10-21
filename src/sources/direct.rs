@@ -1,6 +1,6 @@
 use anyhow::Result;
 use colored::Colorize;
-use reqwest::Url;
+use reqwest::{header::HeaderMap, Url};
 use serde::{Deserialize, Serialize};
 
 use crate::{repos::arch::PlatformDependent, validator::validate_asset_type};
@@ -14,7 +14,7 @@ pub struct DirectSource {
 }
 
 impl AssetSource for DirectSource {
-    fn validate_params(&self) -> Vec<String> {
+    fn validate(&self) -> Vec<String> {
         let Self {
             urls,
             hardcoded_version: _,
@@ -46,6 +46,7 @@ impl AssetSource for DirectSource {
 
         Ok(AssetInfos {
             url: url.clone(),
+            headers: HeaderMap::new(),
             version: hardcoded_version.clone(),
             typ: content.clone(),
         })

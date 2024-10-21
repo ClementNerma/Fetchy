@@ -1,9 +1,12 @@
-use std::sync::LazyLock;
+use std::{env, sync::LazyLock};
 
 use anyhow::{bail, Context, Result};
 use log::debug;
 use regex::Regex;
-use reqwest::{Client, StatusCode};
+use reqwest::{
+    header::{self, HeaderMap, HeaderName, HeaderValue},
+    Client, StatusCode,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{repos::arch::PlatformDependent, utils::join_iter, validator::validate_asset_type};
@@ -26,8 +29,18 @@ pub enum GitHubVersionExtraction {
 
 static NAME_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new("^[A-Za-z0-9_.-]+$").unwrap());
 
+static GITHUB_BASE_HEADERS: LazyLock<HeaderMap> = LazyLock::new(|| {
+    HeaderMap::from_iter([
+        (
+            HeaderName::from_static("x-github-api-version"),
+            HeaderValue::from_static("2022-11-28"),
+        ),
+        (header::USER_AGENT, HeaderValue::from_static("FetchyCliApp")),
+    ])
+});
+
 impl AssetSource for GitHubSource {
-    fn validate_params(&self) -> Vec<String> {
+    fn validate(&self) -> Vec<String> {
         let Self {
             author,
             repo_name,
@@ -66,7 +79,24 @@ impl AssetSource for GitHubSource {
 
         let (asset_pattern, asset_content) = asset.get_for_current_platform()?;
 
-        let release = fetch_latest_release(author, repo_name).await?;
+        let mut headers = GITHUB_BASE_HEADERS.clone();
+
+        if let Some(access_token) = env::var("FETCHY_GITHUB_TOKEN")
+            .ok()
+            .filter(|token| !token.is_empty())
+        {
+            headers.append(
+                "Authorization",
+                HeaderValue::from_str(&format!("Bearer {access_token}"))
+                    .context("Failed to use access token as a header value")?,
+            );
+        }
+
+        let release = fetch_latest_release(author, repo_name, headers.clone())
+            .await
+            .with_context(|| {
+                format!("Failed to fetch latest release of repo '{author}/{repo_name}'")
+            })?;
 
         if release.assets.is_empty() {
             bail!("No asset found in latest release in repo {author}/{repo_name}");
@@ -107,20 +137,25 @@ impl AssetSource for GitHubSource {
 
         Ok(AssetInfos {
             url: asset.browser_download_url,
+            headers,
             version,
             typ: asset_content.clone(),
         })
     }
 }
 
-async fn fetch_latest_release(author: &str, repo_name: &str) -> Result<GitHubRelease> {
+async fn fetch_latest_release(
+    author: &str,
+    repo_name: &str,
+    headers: HeaderMap<HeaderValue>,
+) -> Result<GitHubRelease> {
     let url = format!("https://api.github.com/repos/{author}/{repo_name}/releases/latest");
 
     debug!("Fetching latest release from: {url}");
 
     let resp = Client::new()
         .get(url)
-        .header(reqwest::header::USER_AGENT, "FetchyAppUserAgent")
+        .headers(headers)
         .send()
         .await
         .with_context(|| {
@@ -129,17 +164,16 @@ async fn fetch_latest_release(author: &str, repo_name: &str) -> Result<GitHubRel
 
     let status = resp.status();
 
-    let text = resp.text().await.with_context(|| {
-        format!("Failed to fetch latest release of repo '{author}/{repo_name}' as text")
-    })?;
+    let text = resp
+        .text()
+        .await
+        .context("Failed to decode response as text")?;
 
     if status != StatusCode::OK {
-        bail!("Failed to fetch latest release of repo '{author}/{repo_name}':\n{text}");
+        bail!("Server returned an error:\n{text}");
     }
 
-    serde_json::from_str(&text).with_context(|| {
-        format!("Failed to parse latest release of repo '{author}/{repo_name}' as JSON")
-    })
+    serde_json::from_str(&text).context("Failed to parse response as JSON")
 }
 
 #[derive(Serialize, Deserialize)]
