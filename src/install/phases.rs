@@ -117,49 +117,44 @@ pub async fn determine_install_phases<'a, 'b>(
 
     // Fetch informations about packages that require it
     for (pkg, asset_infos) in fetch_resolved_pkg_infos(&missing).await? {
-        match (db.installed.get(&pkg.manifest.name), pkg.is_dep) {
-            // Missing (= not yet installed) dependency
-            (None, true) => {
-                phases.to_install.missing_deps.push((pkg, asset_infos));
-            }
-
-            // Already installed dependency
-            (Some(_), true) => {
-                phases.untouched.already_installed_deps.push(pkg);
-            }
-
-            // Missing (= not yet installed) non-dependency package
-            (None, false) => {
-                phases.to_install.missing_pkgs.push((pkg, asset_infos));
-            }
-
-            // Already installed non-dependency package
-            (Some(already_installed), false) => match installed_pkgs_handling {
-                InstalledPackagesHandling::Ignore => {
-                    unreachable!()
+        match db.installed.get(&pkg.manifest.name) {
+            None => {
+                if pkg.is_dep {
+                    phases.to_install.missing_deps.push((pkg, asset_infos));
+                } else {
+                    phases.to_install.missing_pkgs.push((pkg, asset_infos));
                 }
+            }
 
-                InstalledPackagesHandling::CheckUpdates => {
-                    // Show if there's an update and that's all
-                    if asset_infos.version == already_installed.version {
-                        phases.untouched.no_update_needed.push(pkg);
-                    } else {
-                        phases.untouched.update_available.push((pkg, asset_infos));
+            Some(already_installed) => {
+                match installed_pkgs_handling {
+                    InstalledPackagesHandling::Ignore => {
+                        assert!(!pkg.is_dep);
+                    }
+
+                    InstalledPackagesHandling::CheckUpdates => {
+                        // Show if there's an update and that's all
+                        if asset_infos.version == already_installed.version {
+                            phases.untouched.no_update_needed.push(pkg);
+                        } else {
+                            phases.untouched.update_available.push((pkg, asset_infos));
+                        }
+                    }
+
+                    InstalledPackagesHandling::Update => {
+                        // Show if there's an update and that's all
+                        if asset_infos.version == already_installed.version {
+                            phases.untouched.no_update_needed.push(pkg);
+                        } else {
+                            phases.untouched.update_available.push((pkg, asset_infos));
+                        }
+                    }
+
+                    InstalledPackagesHandling::Reinstall => {
+                        phases.to_install.reinstall.push((pkg, asset_infos));
                     }
                 }
-
-                InstalledPackagesHandling::Update => {
-                    if asset_infos.version == already_installed.version {
-                        phases.untouched.no_update_needed.push(pkg);
-                    } else {
-                        phases.to_install.needs_updating.push((pkg, asset_infos));
-                    }
-                }
-
-                InstalledPackagesHandling::Reinstall => {
-                    phases.to_install.reinstall.push((pkg, asset_infos));
-                }
-            },
+            }
         }
     }
 
