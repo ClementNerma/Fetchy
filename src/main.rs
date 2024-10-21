@@ -19,6 +19,10 @@ use log::{error, info, warn};
 use rapidfuzz::distance::jaro_winkler::BatchComparator;
 use tokio::fs;
 
+// Bundling a vendored version of OpenSSL to avoid cross-platform compilation problems
+// And avoid requiring OpenSSL on the client machine
+use openssl_sys as _;
+
 use self::{
     args::{Action, Args},
     db::{data::SourcedRepository, Db},
