@@ -125,7 +125,7 @@ pub async fn determine_install_phases<'a, 'b>(
 
             // Already installed dependency
             (Some(_), true) => {
-                phases.untouched.already_installed.push(pkg);
+                phases.untouched.already_installed_deps.push(pkg);
             }
 
             // Missing (= not yet installed) non-dependency package
