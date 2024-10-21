@@ -289,17 +289,10 @@ async fn inner(action: Action) -> Result<()> {
             table.add_rows(pkgs.iter().map(|installed| {
                 [
                     Cell::new(&installed.manifest.name).fg(Color::Yellow),
-                    Cell::new(&installed.version),
+                    Cell::new(&installed.version).fg(Color::DarkCyan),
                     Cell::new(&installed.repo_name).fg(Color::Blue),
-                    Cell::new(join_iter(
-                        installed
-                            .binaries
-                            .iter()
-                            .map(|bin| bin.bright_green().to_string()),
-                        " ",
-                    ))
-                    .fg(Color::Green),
-                    Cell::new(installed.at.strftime("%F %T").to_string()).fg(Color::Black),
+                    Cell::new(join_iter(installed.binaries.iter(), " ")).fg(Color::Green),
+                    Cell::new(installed.at.strftime("%F %T")),
                 ]
             }));
 
