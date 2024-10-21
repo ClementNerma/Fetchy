@@ -119,7 +119,7 @@ pub async fn install_pkgs(
             installed
                 .binaries
                 .iter()
-                .map(|bin| (&installed.manifest.name, bin))
+                .map(|bin| (bin, &installed.manifest))
         })
         .collect::<HashMap<_, _>>();
 
@@ -133,18 +133,18 @@ pub async fn install_pkgs(
         for binary in binaries {
             match seen_bins.entry(&binary.name) {
                 Entry::Occupied(clashing_pkg) => {
-                    if extracted.manifest.name != **clashing_pkg.get() {
+                    if extracted.manifest.name != clashing_pkg.get().name {
                         bail!(
                             "Can't install package {} as it exposes the same binary {} than package {}",
                             extracted.manifest.name.bright_yellow(),
                             binary.name.bright_green(),
-                            clashing_pkg.get().bright_yellow()
+                            clashing_pkg.get().name.bright_yellow()
                         )
                     }
                 }
 
                 Entry::Vacant(vacant) => {
-                    vacant.insert(&extracted.manifest.name);
+                    vacant.insert(&extracted.manifest);
                     flattened_bins.push(binary);
                 }
             }
