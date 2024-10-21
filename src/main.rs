@@ -29,6 +29,7 @@ use self::{
     fetch_repos::{fetch_repositories, fetch_repository, RepositoryLocation, RepositorySource},
     install::{display_pkg_phase, install_pkgs, InstalledPackagesHandling},
     logger::Logger,
+    repos::ast::PackageManifest,
     resolver::{
         build_pkgs_reverse_deps_map, compute_no_longer_needed_deps, refresh_pkg,
         resolve_installed_pkgs, resolve_installed_pkgs_by_name, resolve_pkgs_by_name_with_deps,
@@ -392,9 +393,15 @@ async fn inner(action: Action) -> Result<()> {
 
             let comparator = BatchComparator::new(pattern.to_string().chars());
 
-            results.sort_by_key(|(_, manifest)| {
-                let dist = comparator.distance(manifest.name.chars());
-                (dist * 1_000_000_000.0) as u128
+            let relevance = |manifest: &PackageManifest| {
+                (comparator.distance(manifest.name.chars()) * 1_000_000_000.0) as u128
+            };
+
+            // Sort results by relevance, then by name
+            results.sort_by(|(_, a), (_, b)| {
+                relevance(a)
+                    .cmp(&relevance(b))
+                    .then_with(|| a.name.cmp(&b.name))
             });
 
             let mut table = Table::new();
