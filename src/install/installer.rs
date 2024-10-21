@@ -2,6 +2,7 @@ use std::{
     collections::{hash_map::Entry, HashMap},
     path::PathBuf,
     sync::Arc,
+    time::Instant,
 };
 
 use anyhow::{bail, Context, Result};
@@ -36,6 +37,8 @@ pub async fn install_pkgs(
     db: &mut Db,
     discreet: bool,
 ) -> Result<()> {
+    let start = Instant::now();
+
     let phases = determine_install_phases(pkgs, installed_pkgs_handling, db).await?;
 
     let InstallPhases {
@@ -221,8 +224,9 @@ pub async fn install_pkgs(
     .context("Failed to register newly-installed packages")?;
 
     info!(
-        "Successfully installed {} packages!",
-        to_install.len().to_string().bright_yellow()
+        "Successfully installed {} package(s) in {} second(s)!",
+        to_install.len().to_string().bright_yellow(),
+        start.elapsed().as_secs().to_string().bright_magenta()
     );
 
     let tmp_dir_path = tmp_dir.path().to_owned();
