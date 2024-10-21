@@ -9,7 +9,7 @@ use anyhow::{bail, Context, Result};
 use colored::Colorize;
 use indicatif::ProgressBar;
 use jiff::Zoned;
-use log::{debug, info};
+use log::info;
 use tokio::fs;
 
 use crate::{
@@ -173,8 +173,6 @@ pub async fn install_pkgs(
         #[cfg(target_family = "unix")]
         {
             use std::os::unix::fs::PermissionsExt;
-
-            debug!("Setting file permissions...");
 
             fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755))
                 .await
