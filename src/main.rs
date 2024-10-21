@@ -500,6 +500,11 @@ async fn inner(action: Action) -> Result<()> {
                 }
             })
             .await?;
+
+            info!(
+                "Successfully updated {} repositories.",
+                repos.len().to_string().bright_yellow()
+            );
         }
 
         Action::RemoveRepos { names } => {
