@@ -17,6 +17,10 @@ It is designed to be very simple to use, to not require any central platform for
 * Automatically remove unneeded dependencies when uninstalling a package
 * Asset pulling from direct URL or GitHub releases
 
+## Demo
+
+![demo](https://github.com/user-attachments/assets/ecf3a3c8-7875-446b-81a8-307f0c5c73d9)
+
 ## Step-by-step guide
 
 This project has pre-built binaries which can be found on the [releases page](https://github.com/ClementNerma/Fetchy/releases).
