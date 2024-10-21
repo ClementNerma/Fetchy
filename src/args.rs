@@ -6,6 +6,7 @@ use log::LevelFilter;
 use crate::sources::pattern::Pattern;
 
 #[derive(Parser)]
+#[clap(version, about, author)]
 pub struct Args {
     #[clap(short, long, help = "Level of verbosity", default_value = "info")]
     pub verbosity: LevelFilter,
