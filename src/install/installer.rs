@@ -130,12 +130,14 @@ pub async fn install_pkgs(
         for binary in binaries {
             match seen_bins.entry(&binary.name) {
                 Entry::Occupied(clashing_pkg) => {
-                    bail!(
-                        "Can't install package {} as it exposes the same binary {} than package {}",
-                        extracted.manifest.name.bright_yellow(),
-                        binary.name.bright_green(),
-                        clashing_pkg.get().bright_yellow()
-                    )
+                    if extracted.manifest.name != **clashing_pkg.get() {
+                        bail!(
+                            "Can't install package {} as it exposes the same binary {} than package {}",
+                            extracted.manifest.name.bright_yellow(),
+                            binary.name.bright_green(),
+                            clashing_pkg.get().bright_yellow()
+                        )
+                    }
                 }
 
                 Entry::Vacant(vacant) => {
