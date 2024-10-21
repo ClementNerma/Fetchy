@@ -1,6 +1,6 @@
 [package]
 name = "fetchy"
-version = "0.12.4"
+version = "0.13.0"
 edition = "2021"
 description = "Quick packages installer"
 license = "Apache-2.0"
@@ -8,23 +8,25 @@ repository = "https://github.com/ClementNerma/Fetchy"
 
 [dependencies]
 anyhow = "1.0.89"
+async-compression = { version = "0.4.16", features = ["xz", "gzip", "tokio"] }
+async_zip = { version = "0.0.17", features = ["tokio", "tokio-fs", "deflate"] }
 clap = { version = "4.5.20", features = ["derive"] }
 colored = "2.1.0"
+comfy-table = "7.1.1"
 dialoguer = { version = "0.11.0", default-features = false }
 dirs = "5.0.1"
-flate2 = "1.0.34"
-glob = "0.3.1"
 indicatif = "0.17.8"
-openssl-sys = { version = "0.9.104", features = ["vendored"] }
+jiff = { version = "0.1.13", features = ["serde"] }
+krata-tokio-tar = "0.4.2"
+log = { version = "0.4.22", features = ["std"] }
 parsy = "0.7.1"
 paste = "1.0.15"
-rayon = "1.10.0"
+rapidfuzz = "0.5.0"
 regex = "1.11.0"
-reqwest = { version = "0.12.8", features = ["blocking"] }
+reqwest = "0.12.8"
 serde = { version = "1.0.210", features = ["derive"] }
-serde_json = "1.0.128"
-tar = "0.4.42"
+serde_json = "1.0.129"
 tempfile = "3.13.0"
-unicode-width = "0.2.0"
-xz2 = "0.1.7"
-zip = "2.2.0"
+tokio = { version = "1.40.0", features = ["fs", "macros", "rt-multi-thread"] }
+tokio-stream = "0.1.16"
+tokio-util = { version = "0.7.12", features = ["compat"] }

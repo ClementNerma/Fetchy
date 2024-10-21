@@ -1,35 +1,53 @@
+use anyhow::Result;
+use colored::Colorize;
+use reqwest::Url;
 use serde::{Deserialize, Serialize};
 
-use super::AssetSource;
-use crate::{arch::PlatformDependent, fetcher::AssetInfos, repository::FileExtraction};
+use crate::{repos::arch::PlatformDependent, validator::validate_asset_type};
 
-#[derive(Serialize, Deserialize)]
-pub struct DirectSourceParams {
-    pub urls: PlatformDependent<(String, FileExtraction)>,
+use super::{AssetInfos, AssetSource, AssetType};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DirectSource {
+    pub urls: PlatformDependent<(String, AssetType)>,
     pub hardcoded_version: String,
 }
 
-pub struct DirectSource;
-
 impl AssetSource for DirectSource {
-    type Params = DirectSourceParams;
+    fn validate_params(&self) -> Vec<String> {
+        let Self {
+            urls,
+            hardcoded_version: _,
+        } = self;
 
-    // fn make_parser() -> Box<dyn parsy::Parser<Self>> {
-    //     todo!()
-    // }
+        let mut errors = vec![];
 
-    fn fetch(params: &Self::Params) -> anyhow::Result<AssetInfos> {
-        let DirectSourceParams {
+        for (url, asset_typ) in urls.values() {
+            if let Err(err) = Url::parse(url) {
+                errors.push(format!(
+                    "Invalid asset URL {}: {err}",
+                    format!("{url:?}").bright_magenta()
+                ));
+            }
+
+            validate_asset_type(asset_typ, &mut errors);
+        }
+
+        errors
+    }
+
+    async fn fetch_infos(&self) -> Result<AssetInfos> {
+        let Self {
             urls,
             hardcoded_version,
-        } = params;
+        } = self;
 
-        let (url, extraction) = urls.get_for_current_platform()?.clone();
+        let (url, content) = urls.get_for_current_platform()?;
 
         Ok(AssetInfos {
-            url,
+            url: url.clone(),
             version: hardcoded_version.clone(),
-            extraction,
+            typ: content.clone(),
         })
     }
 }

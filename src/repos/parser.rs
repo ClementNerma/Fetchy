@@ -1,18 +1,19 @@
-use parsy::{char, choice, filter, just, newline, whitespaces, Parser};
+use std::collections::HashMap;
 
-use crate::{
-    arch::{CpuArch, PlatformDependent, PlatformDependentEntry, System},
+use parsy::{char, choice, filter, just, newline, whitespaces, Parser};
+use regex::Regex;
+
+use crate::sources::{
+    direct::DirectSource,
+    github::{GitHubSource, GitHubVersionExtraction},
     pattern::Pattern,
-    repository::{
-        ArchiveFormat, BinaryExtraction, DownloadSource, FileExtraction, Package, Repository,
-    },
-    sources::{
-        direct::DirectSourceParams,
-        github::{GitHubSourceParams, GitHubVersionExtraction},
-    },
+    ArchiveFormat, AssetType, BinaryInArchive,
 };
 
-// TODO: validate filenames (and sanitize package names)
+use super::{
+    arch::{CpuArch, PlatformDependent, PlatformDependentEntry, System},
+    ast::{DownloadSource, PackageManifest, Repository},
+};
 
 pub fn repository() -> impl Parser<Repository> {
     let ms = whitespaces().no_newline();
@@ -28,8 +29,6 @@ pub fn repository() -> impl Parser<Repository> {
                 .critical("expected a string"),
         )
         .then_ignore(char('"').critical("expected a closing quote after the string"));
-
-    let arrow = just("->").line_padded();
 
     let system = choice::<_, System>((
         just("linux").to(System::linux),
@@ -48,7 +47,11 @@ pub fn repository() -> impl Parser<Repository> {
         .then(cpu_arch)
         .then_ignore(char(']').critical_with_no_message());
 
-    let pattern = string.and_then_str(|string| Pattern::parse(&string));
+    let pattern = string.and_then_str(|string| {
+        Regex::new(&string)
+            .map(Pattern)
+            .map_err(|err| format!("Invalid regex {string:?} provided: {err}"))
+    });
 
     let single_file_extraction = just("bin")
         .ignore_then(s.critical_with_no_message())
@@ -59,9 +62,9 @@ pub fn repository() -> impl Parser<Repository> {
                 .ignore_then(string.critical("expected a name for the binary file"))
                 .or_not(),
         )
-        .map(|(relative_path, rename)| BinaryExtraction {
-            relative_path,
-            rename,
+        .map(|(path_matcher, rename_as)| BinaryInArchive {
+            path_matcher,
+            rename_as,
         });
 
     let archive_format = choice::<_, ArchiveFormat>((
@@ -71,11 +74,11 @@ pub fn repository() -> impl Parser<Repository> {
     ))
     .atomic_err("expected a valid archive format");
 
-    let file_extraction = choice::<_, FileExtraction>((
+    let asset_content = choice::<_, AssetType>((
         just("bin")
             .ignore_then(s.critical_with_no_message())
             .ignore_then(string.critical("expected a binary filename"))
-            .map(|copy_as| FileExtraction::Binary { copy_as }),
+            .map(|copy_as| AssetType::Binary { copy_as }),
         archive_format
             .then_ignore(ms)
             .then_ignore(char('{').critical_with_no_message())
@@ -87,16 +90,15 @@ pub fn repository() -> impl Parser<Repository> {
                     .critical("expected at least one file extraction for the archive"),
             )
             .then_ignore(char('}').critical_with_no_message())
-            .map(|(format, files)| FileExtraction::Archive { format, files }),
+            .map(|(format, files)| AssetType::Archive { format, files }),
     ));
 
     let direct_asset = platform
-        .then_ignore(arrow.critical_with_no_message())
-        .then_ignore(ms)
+        .then_ignore(s.critical_with_no_message())
         .then(string.critical("expected an URL"))
-        .then_ignore(arrow.critical_with_no_message())
-        .then(file_extraction.critical("expected a file extraction"))
-        .map::<_, PlatformDependentEntry<(String, FileExtraction)>>(
+        .then_ignore(s.critical_with_no_message())
+        .then(asset_content.critical("expected a file extraction"))
+        .map::<_, PlatformDependentEntry<(String, AssetType)>>(
             |(((system, cpu_arch), asset_pattern), file_extraction)| {
                 PlatformDependentEntry::new(system, cpu_arch, (asset_pattern, file_extraction))
             },
@@ -108,7 +110,7 @@ pub fn repository() -> impl Parser<Repository> {
         .ignore_then(string.critical("expected a hardcoded version string"))
         .then_ignore(char(')').critical_with_no_message())
         .then_ignore(s.critical_with_no_message())
-        .then_ignore(char('(').critical_with_no_message())
+        .then_ignore(char('{').critical_with_no_message())
         .then(
             direct_asset
                 .padded_by(msnl)
@@ -117,8 +119,8 @@ pub fn repository() -> impl Parser<Repository> {
                 .critical("expected at least 1 downloadable asset")
                 .map(PlatformDependent::new),
         )
-        .then_ignore(char(')').critical_with_no_message())
-        .map(|(hardcoded_version, urls)| DirectSourceParams {
+        .then_ignore(char('}').critical_with_no_message())
+        .map(|(hardcoded_version, urls)| DirectSource {
             urls,
             hardcoded_version,
         });
@@ -126,14 +128,10 @@ pub fn repository() -> impl Parser<Repository> {
     let github_asset = platform
         .critical("expected a binary platform")
         .then_ignore(ms)
-        .then(
-            string
-                .critical("expected an asset pattern")
-                .and_then_str(|pattern| Pattern::parse(&pattern)),
-        )
+        .then(pattern.critical("expected an asset pattern"))
         .then_ignore(s.critical_with_no_message())
-        .then(file_extraction.critical("expected a file extraction"))
-        .map::<_, PlatformDependentEntry<(Pattern, FileExtraction)>>(
+        .then(asset_content.critical("expected a file extraction"))
+        .map::<_, PlatformDependentEntry<(Pattern, AssetType)>>(
             |(((system, cpu_arch), asset_pattern), file_extraction)| {
                 PlatformDependentEntry::new(system, cpu_arch, (asset_pattern, file_extraction))
             },
@@ -168,17 +166,15 @@ pub fn repository() -> impl Parser<Repository> {
             github_asset
                 .padded_by(msnl)
                 .separated_by(char(','))
-                .map(PlatformDependent),
+                .map(PlatformDependent::new),
         )
         .then_ignore(char('}').critical_with_no_message())
-        .map(
-            |(((author, repo_name), version), asset)| GitHubSourceParams {
-                author,
-                repo_name,
-                version,
-                asset,
-            },
-        );
+        .map(|(((author, repo_name), version), asset)| GitHubSource {
+            author,
+            repo_name,
+            version,
+            asset,
+        });
 
     let package = string
         .then(
@@ -213,23 +209,23 @@ pub fn repository() -> impl Parser<Repository> {
             ))
             .critical("expected a valid download source"),
         )
-        .map(|((name, depends_on), download)| Package {
+        .map(|((name, depends_on), source)| PackageManifest {
             name,
-            depends_on,
-            source: download,
+            depends_on: depends_on.unwrap_or_default(),
+            source,
         });
 
-    let name = just("@name")
+    let name = just("name")
         .ignore_then(s.critical_with_no_message())
         .ignore_then(string);
 
-    let description = just("@description")
+    let description = just("description")
         .ignore_then(s.critical_with_no_message())
         .ignore_then(string);
 
     let newlines = newline().repeated().at_least(1);
 
-    let packages = just("@packages")
+    let packages = just("packages")
         .ignore_then(ms)
         .ignore_then(char('{').critical_with_no_message())
         .ignore_then(
@@ -250,7 +246,10 @@ pub fn repository() -> impl Parser<Repository> {
         .map(|((name, description), packages)| Repository {
             name,
             description,
-            packages,
+            packages: packages
+                .into_iter()
+                .map(|pkg| (pkg.name.clone(), pkg))
+                .collect::<HashMap<_, _>>(),
         });
 
     repository.padded_by(msnl).full()

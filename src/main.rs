@@ -1,51 +1,56 @@
+// TODO: try using ProgressIterator instead of doing manual pb.inc(1) in for loops
+
 #![forbid(unsafe_code)]
 #![forbid(unused_must_use)]
 #![warn(unused_crate_dependencies)]
+// TODO: remove nightly feature
+#![feature(result_flattening)]
 
 use std::{
-    fs,
-    path::{Path, PathBuf},
+    collections::{BTreeMap, BTreeSet, HashSet},
     process::ExitCode,
-    sync::atomic::Ordering,
 };
 
 use anyhow::{bail, Context, Result};
-use clap::Parser;
+use clap::Parser as _;
 use colored::Colorize;
-use glob::Pattern;
-use openssl_sys as _;
+use comfy_table::{presets, Attribute, Cell, Color, ContentArrangement, Table};
+use log::{error, info, warn};
+use rapidfuzz::distance::jaro_winkler::BatchComparator;
+use tokio::fs;
 
 use self::{
-    app_data::{AppData, InstalledPackage, Repositories, RepositorySource, SourcedRepository},
-    cmd::*,
-    fetcher::fetch_repository,
-    installer::{install_packages, InstalledPackagesAction},
-    logging::PRINT_DEBUG_MESSAGES,
+    args::{Action, Args},
+    db::{data::SourcedRepository, Db},
+    fetch_repos::{fetch_repositories, fetch_repository, RepositoryLocation, RepositorySource},
+    install::{display_pkg_phase, install_pkgs, InstalledPackagesHandling},
+    logger::Logger,
+    resolver::{
+        build_pkgs_reverse_deps_map, compute_no_longer_needed_deps, refresh_pkg,
+        resolve_installed_pkgs, resolve_installed_pkgs_by_name, resolve_pkgs_by_name_with_deps,
+    },
+    utils::{confirm, join_iter},
 };
 
-mod app_data;
-mod arch;
-mod archives;
-mod cmd;
-mod fetcher;
-mod installer;
-mod logging;
-mod parser;
-mod pattern;
-mod repository;
+mod args;
+mod db;
+mod fetch_repos;
+mod install;
+mod logger;
+mod repos;
 mod resolver;
 mod sources;
 mod utils;
+mod validator;
 
-#[derive(Debug)]
-pub struct AppState {
-    pub bin_dir: PathBuf,
-    pub state_file_path: PathBuf,
-    pub quiet: bool,
-}
+#[tokio::main]
+async fn main() -> ExitCode {
+    let Args { action, verbosity } = Args::parse();
 
-fn main() -> ExitCode {
-    match inner() {
+    // Set up the logger
+    Logger::new(verbosity).init().unwrap();
+
+    match inner(action).await {
         Ok(()) => ExitCode::SUCCESS,
 
         Err(err) => {
@@ -55,352 +60,488 @@ fn main() -> ExitCode {
     }
 }
 
-fn inner() -> Result<()> {
-    let args = Cmd::parse();
+async fn inner(action: Action) -> Result<()> {
+    let data_dir = dirs::state_dir()
+        .context("Failed to get path to the user's app state directory")?
+        .join("fetchy");
 
-    if args.verbose {
-        PRINT_DEBUG_MESSAGES.store(true, Ordering::Release);
+    if !data_dir.exists() {
+        fs::create_dir_all(&data_dir).await.with_context(|| {
+            format!(
+                "Failed to create the application's state directory at: {}",
+                data_dir.display()
+            )
+        })?;
     }
 
-    let app_data_dir = match std::env::var_os("FETCHY_DATA_DIR") {
-        Some(path) => PathBuf::from(path),
-        None => dirs::state_dir()
-            .context("Failed to get path to local data directory")?
-            .join("fetchy"),
-    };
+    let mut db = Db::open_data_dir(data_dir).await?;
 
-    if !app_data_dir.exists() {
-        fs::create_dir_all(&app_data_dir)
-            .context("Failed to create the application's data directory")?;
-    }
+    let repos = db
+        .repositories
+        .iter()
+        .map(|(name, repo)| (name.clone(), repo.content.clone()))
+        .collect::<BTreeMap<_, _>>();
 
-    let bin_dir = app_data_dir.join("bin");
+    match action {
+        Action::Install {
+            names,
+            force,
+            check_updates,
+            discreet,
+        } => {
+            let pkgs = resolve_pkgs_by_name_with_deps(names.as_slice(), &repos)?;
 
-    let state_file_path = app_data_dir.join("state.json");
-    let repositories_file_path = app_data_dir.join("repositories.json");
-
-    if !bin_dir.exists() {
-        fs::create_dir(&bin_dir).context("Failed to create the binaries directory")?;
-    }
-
-    let app_data = || -> Result<AppData> {
-        if state_file_path.exists() {
-            let json = fs::read_to_string(&state_file_path)
-                .context("Failed to read application's data file")?;
-
-            Ok(serde_json::from_str::<AppData>(&json)
-                .context("Failed to parse application's data file")?)
-        } else {
-            Ok(AppData::default())
-        }
-    };
-
-    let repositories = || -> Result<Repositories> {
-        if repositories_file_path.exists() {
-            let json = fs::read_to_string(&repositories_file_path)
-                .context("Failed to read the repositories file")?;
-
-            Ok(serde_json::from_str::<Repositories>(&json)
-                .context("Failed to parse the repositories file")?)
-        } else {
-            Ok(Repositories::default())
-        }
-    };
-
-    // Initialize global state
-    let state = AppState {
-        bin_dir: bin_dir.clone(),
-        state_file_path: state_file_path.clone(),
-        quiet: args.quiet,
-    };
-
-    match args.action {
-        Action::Path(action) => match action {
-            PathAction::Binaries => print!(
-                "{}",
-                bin_dir
-                    .to_str()
-                    .context("Path to the binaries directory contains invalid UTF-8 characters")?
-            ),
-
-            PathAction::ProgramBinary { name } => {
-                let app_state = app_data()?;
-
-                let installed = app_state
-                    .installed
-                    .iter()
-                    .find(|pkg| pkg.pkg_name == name)
-                    .with_context(|| format!("Provided package '{name}' was not found"))?;
-
-                if installed.binaries.is_empty() {
-                    bail!("Package '{name}' has no binary");
-                }
-
-                if installed.binaries.len() > 1 {
-                    bail!(
-                        "Package '{name}' has more than one binary: {}",
-                        installed.binaries.join(", ")
-                    );
-                }
-
-                print!("{}", bin_dir.join(&installed.binaries[0]).display());
-            }
-        },
-
-        Action::Repos(action) => match action {
-            ReposAction::Add(AddRepoArgs { file, ignore }) => {
-                let file = std::fs::canonicalize(file)
-                    .context("Failed to canonicalize provided repository file path")?;
-
-                let repo = fetch_repository(&RepositorySource::File(file.clone()))?;
-
-                let mut repositories = repositories()?;
-
-                let already_exists = repositories
-                    .list
-                    .iter()
-                    .any(|other| other.content.name == repo.name);
-
-                if already_exists {
-                    if !ignore {
-                        bail!(
-                            "Another repository is already registered with the name: {}",
-                            repo.name.bright_magenta()
-                        );
-                    }
-                } else {
-                    repositories.list.push(SourcedRepository {
-                        content: repo,
-                        source: RepositorySource::File(file),
-                    });
-
-                    success!("Successfully added the repository!");
-
-                    save_repositories(&repositories_file_path, &repositories)?;
-                }
-            }
-
-            ReposAction::List => {
-                let repositories = repositories()?;
-
-                info!(
-                    "There are {} registered repositories:\n",
-                    repositories.list.len()
-                );
-
-                for (i, sourced) in repositories.list.iter().enumerate() {
-                    info!(
-                        "* {:>2}. {}",
-                        (i + 1).to_string().bright_yellow(),
-                        sourced.content.name.bright_magenta()
-                    );
-                }
-            }
-
-            ReposAction::Update => {
-                let mut repositories = repositories()?;
-
-                let yellow_len = repositories.list.len().to_string().bright_yellow();
-
-                for (i, sourced) in repositories.list.iter_mut().enumerate() {
-                    if !args.quiet {
-                        info!(
-                            "==> Updating repository {} ({} / {})...",
-                            sourced.content.name.bright_magenta(),
-                            (i + 1).to_string().bright_yellow(),
-                            yellow_len
-                        );
-                    }
-
-                    sourced.content = fetch_repository(&sourced.source)?;
-                }
-
-                if !args.quiet {
-                    success!("Successfully updated all repositories!");
-                }
-
-                save_repositories(&repositories_file_path, &repositories)?;
-            }
-
-            ReposAction::Validate(ValidateRepoFileArgs { file }) => {
-                let repo = fetch_repository(&RepositorySource::File(file.clone()))?;
-
-                success!(
-                    "Successfully validated repository file, containing {} package(s).",
-                    repo.packages.len()
-                );
-            }
-        },
-
-        Action::Search(SearchArgs {
-            filter,
-            show_installed,
-        }) => {
-            let filter = filter
-                .map(|filter| Pattern::new(&filter))
-                .transpose()
-                .context("Failed to parse provided glob pattern")?;
-
-            let repositories = repositories()?;
-            let app_state = app_data()?;
-
-            let installable = repositories
-                .list
-                .iter()
-                .flat_map(|repo| repo.content.packages.iter().map(move |pkg| (pkg, repo)))
-                .filter(|(pkg, _)| match filter {
-                    None => true,
-                    Some(ref filter) => filter.matches(&pkg.name),
-                })
-                .filter(|(pkg, repo)| {
-                    show_installed
-                        || !app_state
-                            .installed
-                            .iter()
-                            .any(|c| c.pkg_name == pkg.name && c.repo_name == repo.content.name)
-                });
-
-            for (pkg, _) in installable {
-                println!("{}", pkg.name.bright_yellow());
-            }
-        }
-
-        Action::Install(InstallArgs { names, force }) => {
-            let repositories = repositories()?;
-
-            if repositories.list.is_empty() {
-                bail!("No repository found, please register one.");
-            }
-
-            install_packages(
-                &repositories,
-                &names,
+            install_pkgs(
+                pkgs,
                 if force {
-                    InstalledPackagesAction::Reinstall
+                    InstalledPackagesHandling::Reinstall
+                } else if check_updates {
+                    InstalledPackagesHandling::CheckUpdates
                 } else {
-                    InstalledPackagesAction::Ignore
+                    InstalledPackagesHandling::Ignore
                 },
-                &mut app_data()?,
-                &state,
-            )?;
+                &mut db,
+                discreet,
+            )
+            .await?;
         }
 
-        Action::Installed(InstalledArgs { sort_by, rev_sort }) => {
-            let app_state = app_data()?;
+        Action::Update { names, force } => {
+            let pkgs = if !names.is_empty() {
+                resolve_installed_pkgs_by_name(&names, &db.installed, &repos)?
+            } else {
+                resolve_installed_pkgs(db.installed.values(), &repos)?
+            };
 
-            let mut installed: Vec<_> = app_state.installed.iter().collect();
+            let pkgs = pkgs
+                .into_iter()
+                .map(|(resolved, _)| resolved)
+                .map(refresh_pkg)
+                .collect::<Result<Vec<_>, _>>()?;
 
-            if installed.is_empty() {
-                warn!("No package installed.");
+            install_pkgs(
+                pkgs,
+                if force {
+                    InstalledPackagesHandling::Reinstall
+                } else {
+                    InstalledPackagesHandling::Update
+                },
+                &mut db,
+                false,
+            )
+            .await?;
+        }
+
+        Action::Uninstall { names, deps } => {
+            let installed = resolve_installed_pkgs(db.installed.values(), &repos)?;
+
+            let reverse_deps_map = build_pkgs_reverse_deps_map(
+                installed.iter().map(|(resolved, _)| resolved.manifest),
+            );
+
+            let to_uninstall = resolve_installed_pkgs_by_name(&names, &db.installed, &repos)?;
+            let to_uninstall_names = HashSet::from_iter(names.iter().map(String::as_str));
+
+            for (resolved, _) in &to_uninstall {
+                let Some(deps_of) = reverse_deps_map.get(resolved.manifest.name.as_str()) else {
+                    continue;
+                };
+
+                let would_break = deps_of
+                    .difference(&to_uninstall_names)
+                    .collect::<BTreeSet<_>>();
+
+                if !would_break.is_empty() {
+                    bail!(
+                        "Cannot remove package {} as it would break the following packages depending on it: {}",
+                        resolved.manifest.name.bright_yellow(),
+                        join_iter(would_break.iter().map(|name| name.bright_yellow()), " ")
+                    );
+                }
+            }
+
+            display_pkg_phase(
+                "The following package(s) will be UNINSTALLED",
+                to_uninstall.iter().map(|(p, _)| *p),
+            );
+
+            let no_longer_needed_deps =
+                compute_no_longer_needed_deps(&installed, &to_uninstall_names, &reverse_deps_map);
+
+            let to_uninstall = if !no_longer_needed_deps.is_empty() {
+                display_pkg_phase(
+                    if deps {
+                        "The following unneeded dependencies will be uninstalled as well"
+                    } else {
+                        "The following dependencies will no longer be needed"
+                    },
+                    no_longer_needed_deps.iter().map(|(p, _)| *p),
+                );
+
+                if deps {
+                    let mut to_uninstall = to_uninstall;
+                    let mut no_longer_needed_deps = no_longer_needed_deps;
+
+                    to_uninstall.append(&mut no_longer_needed_deps);
+                    to_uninstall
+                } else {
+                    to_uninstall
+                }
+            } else {
+                to_uninstall
+            };
+
+            warn!(
+                "Do you want to want to uninstall {} package(s)?\n",
+                to_uninstall.len().to_string().bright_red()
+            );
+
+            if !confirm().await? {
                 return Ok(());
             }
 
-            match sort_by {
-                None | Some(PkgSortBy::Name) => installed.sort_by_key(|pkg| &pkg.pkg_name),
-                Some(PkgSortBy::InstallDate) => installed.sort_by_key(|pkg| pkg.at),
-            }
+            let bin_dir = db.bin_dir();
 
-            if rev_sort {
-                installed.reverse();
-            }
+            let bin_paths = to_uninstall
+                .into_iter()
+                .flat_map(|(_, installed)| {
+                    installed
+                        .binaries
+                        .iter()
+                        .map(move |bin| (bin_dir.join(bin), bin, installed))
+                })
+                .collect::<Vec<_>>();
 
-            let largest_pkg_name = largest_key_width!(installed, pkg_name);
-            let largest_pkg_version = largest_key_width!(installed, version);
-            let largest_pkg_repo_name = largest_key_width!(installed, repo_name);
-
-            for InstalledPackage {
-                pkg_name,
-                repo_name,
-                version,
-                at: _,
-                binaries,
-            } in installed
-            {
-                print!(
-                    "{} {} {} {} ",
-                    "*".bright_yellow(),
-                    format!("{pkg_name:largest_pkg_name$}").bright_cyan(),
-                    format!("{version:largest_pkg_version$}").bright_yellow(),
-                    format!("{repo_name:largest_pkg_repo_name$}").bright_magenta(),
-                );
-
-                for (i, bin) in binaries.iter().enumerate() {
-                    if i > 0 {
-                        print!(", ");
-                    }
-
-                    print!("{}", bin.bright_green().underline());
-                }
-
-                println!();
-            }
-        }
-
-        Action::Update(UpdateArgs { names }) => {
-            let mut app_data = app_data()?;
-
-            let names = if names.is_empty() {
-                app_data
-                    .installed
-                    .iter()
-                    .map(|pkg| pkg.pkg_name.clone())
-                    .collect()
-            } else {
-                names
-            };
-
-            install_packages(
-                &repositories()?,
-                &names,
-                InstalledPackagesAction::Update,
-                &mut app_data,
-                &state,
-            )?;
-        }
-
-        Action::Uninstall(UninstallArgs { name }) => {
-            let mut app_state = app_data()?;
-
-            let index = app_state
-                .installed
+            if let Some((bin_path, bin_name, installed)) = bin_paths
                 .iter()
-                .position(|package| package.pkg_name == name)
-                .with_context(|| format!("Package '{name}' is not currently installed."))?;
-
-            for file in &app_state.installed[index].binaries {
-                fs::remove_file(bin_dir.join(file))
-                    .with_context(|| format!("Failed to remove binary '{file}'"))?;
+                .find(|(bin_path, _, _)| !bin_path.is_file())
+            {
+                bail!(
+                    "Binary {} from package {} is missing (at path: {})",
+                    bin_name.bright_green(),
+                    installed.manifest.name.bright_yellow(),
+                    bin_path.to_string_lossy().bright_magenta()
+                );
             }
 
-            app_state.installed.remove(index);
+            for (bin_path, bin_name, installed) in &bin_paths {
+                fs::remove_file(&bin_path).await.with_context(|| {
+                    format!(
+                        "Faile dto remove binary {} from package {} is missing (at path: {})",
+                        bin_name.bright_green(),
+                        installed.manifest.name.bright_yellow(),
+                        bin_path.to_string_lossy().bright_magenta()
+                    )
+                })?;
+            }
 
-            save_app_state(&state_file_path, &app_state)?;
+            let to_uninstall = bin_paths
+                .into_iter()
+                .map(|(_, _, installed)| installed.manifest.name.clone())
+                .collect::<Vec<_>>();
 
-            success!(
-                "Successfully uninstalled package '{}'",
-                name.bright_yellow()
+            db.update(|db| {
+                for pkg_name in &to_uninstall {
+                    assert!(db.installed.remove(pkg_name).is_some());
+                }
+            })
+            .await?;
+
+            info!(
+                "Successfully removed {} packages!",
+                to_uninstall.len().to_string().bright_yellow()
             );
         }
+
+        Action::List {} => {
+            let mut table = Table::new();
+
+            table
+                // Disable borders
+                .load_preset(presets::NOTHING)
+                // Enable dynamic sizing for columns
+                .set_content_arrangement(ContentArrangement::Dynamic)
+                // Add header
+                .set_header(
+                    ["Name", "Version", "Repository", "Binaries", "Install date"]
+                        .into_iter()
+                        .map(|header| {
+                            Cell::new(header)
+                                .add_attribute(Attribute::Bold)
+                                .add_attribute(Attribute::Underlined)
+                        }),
+                );
+
+            // TODO: add options to sort results
+            let mut pkgs = db.installed.values().collect::<Vec<_>>();
+
+            pkgs.sort_by(|a, b| {
+                a.repo_name
+                    .cmp(&b.repo_name)
+                    .then_with(|| a.manifest.name.cmp(&b.manifest.name))
+            });
+
+            table.add_rows(pkgs.iter().map(|installed| {
+                [
+                    Cell::new(&installed.manifest.name).fg(Color::Yellow),
+                    Cell::new(&installed.version),
+                    Cell::new(&installed.repo_name).fg(Color::Blue),
+                    Cell::new(join_iter(
+                        installed
+                            .binaries
+                            .iter()
+                            .map(|bin| bin.bright_green().to_string()),
+                        " ",
+                    ))
+                    .fg(Color::Green),
+                    Cell::new(installed.at.strftime("%F %T").to_string()).fg(Color::Black),
+                ]
+            }));
+
+            println!("{table}");
+        }
+
+        Action::Repair { names } => {
+            let installed = if !names.is_empty() {
+                resolve_installed_pkgs_by_name(&names, &db.installed, &repos)?
+            } else {
+                resolve_installed_pkgs(db.installed.values(), &repos)?
+            };
+
+            let broken = installed
+                .iter()
+                .filter(|(_, installed)| {
+                    installed
+                        .binaries
+                        .iter()
+                        .any(|bin| !db.bin_dir().join(bin).is_file())
+                })
+                .collect::<Vec<_>>();
+
+            if broken.is_empty() {
+                info!("Found no broken package!");
+                return Ok(());
+            }
+
+            display_pkg_phase(
+                "Going to repair (and update) the following broken package(s)",
+                broken.iter().map(|(resolved, _)| *resolved),
+            );
+
+            warn!("Do you want to continue?");
+
+            if !confirm().await? {
+                return Ok(());
+            }
+
+            let broken = broken
+                .into_iter()
+                .map(|(resolved, _)| refresh_pkg(*resolved))
+                .collect::<Result<Vec<_>, _>>()?;
+
+            install_pkgs(broken, InstalledPackagesHandling::Reinstall, &mut db, false).await?;
+        }
+
+        Action::Search {
+            pattern,
+            in_repos,
+            show_installed,
+        } => {
+            if db.repositories.is_empty() {
+                warn!("No registered repository");
+                return Ok(());
+            }
+
+            let mut repos = repos;
+
+            if !in_repos.is_empty() {
+                let in_repos = HashSet::<_>::from_iter(in_repos.iter());
+                repos.retain(|name, _| in_repos.contains(name));
+            };
+
+            let mut results = repos
+                .values()
+                .flat_map(|repo| {
+                    repo.packages
+                        .iter()
+                        .filter(|(_, manifest)| pattern.is_match(&manifest.name))
+                        .map(|(_, manifest)| (&repo.name, manifest))
+                })
+                .collect::<Vec<_>>();
+
+            if !show_installed {
+                let installed = db
+                    .installed
+                    .values()
+                    .map(|installed| {
+                        (
+                            installed.repo_name.as_str(),
+                            installed.manifest.name.as_str(),
+                        )
+                    })
+                    .collect::<HashSet<_>>();
+
+                results.retain(|(repo_name, manifest)| {
+                    !installed.contains(&(repo_name.as_str(), manifest.name.as_str()))
+                });
+            }
+
+            let comparator = BatchComparator::new(pattern.to_string().chars());
+
+            results.sort_by_key(|(_, manifest)| {
+                let dist = comparator.distance(manifest.name.chars());
+                (dist * 1_000_000_000.0) as u128
+            });
+
+            let mut table = Table::new();
+
+            table
+                // Disable borders
+                .load_preset(presets::NOTHING)
+                .set_header(["Package name", "Repository"].into_iter().map(|header| {
+                    Cell::new(header)
+                        .add_attribute(Attribute::Bold)
+                        .add_attribute(Attribute::Underlined)
+                }));
+
+            table.add_rows(results.into_iter().map(|(repo_name, manifest)| {
+                [
+                    Cell::new(&manifest.name).fg(Color::Yellow),
+                    Cell::new(repo_name).fg(Color::Blue),
+                ]
+            }));
+
+            println!("{table}");
+        }
+
+        Action::AddRepo { path, json, ignore } => {
+            let path = fs::canonicalize(&path)
+                .await
+                .context("Failed to canonicalize repository path")?;
+
+            let location = RepositoryLocation::File(path);
+
+            if let Some(repo) = db
+                .repositories
+                .values()
+                .find(|repo| repo.source.location == location)
+            {
+                if !ignore {
+                    warn!(
+                        "Repository {} with the same provided location is already registered, skipping.",
+                        repo.content.name.bright_blue()
+                    );
+                }
+
+                return Ok(());
+            }
+
+            let source = RepositorySource { location, json };
+
+            let repo = fetch_repository(&source).await?;
+
+            if let Some(existing) = db.repositories.get(&repo.name) {
+                bail!(
+                    "A repository with the same name is already installed, source location: {}",
+                    existing.source.location
+                );
+            }
+
+            let pkgs_count = repo.packages.len();
+
+            db.update(|db| {
+                db.repositories.insert(
+                    repo.name.clone(),
+                    SourcedRepository {
+                        content: repo,
+                        source,
+                    },
+                );
+            })
+            .await?;
+
+            info!(
+                "Success! You now have {} additional packages to choose from!",
+                pkgs_count.to_string().bright_yellow()
+            );
+        }
+
+        Action::UpdateRepos {} => {
+            if db.repositories.is_empty() {
+                warn!("No registered repository");
+                return Ok(());
+            }
+
+            let fetched =
+                fetch_repositories(db.repositories.values().map(|repo| repo.source.clone()))
+                    .await?;
+
+            db.update(|db| {
+                let mut fetched = fetched.into_iter();
+
+                for (_, repo) in db.repositories.iter_mut() {
+                    let fetched = fetched.next().unwrap();
+
+                    // Just to be safe
+                    assert_eq!(repo.content.name, fetched.name);
+
+                    repo.content = fetched;
+                }
+            })
+            .await?;
+        }
+
+        Action::RemoveRepos { names } => {
+            let names = HashSet::<_>::from_iter(names.iter());
+            let repos_names = HashSet::<_>::from_iter(repos.keys());
+
+            if let Some(not_found) = names.difference(&repos_names).next() {
+                bail!("Repository {} was not found", not_found.bright_blue());
+            }
+
+            db.update(|db| {
+                for name in names {
+                    assert!(db.repositories.remove(name).is_some());
+                }
+            })
+            .await?;
+        }
+
+        Action::ListRepos {} => {
+            if db.repositories.is_empty() {
+                warn!("No registered repository");
+                return Ok(());
+            }
+
+            let mut table = Table::new();
+
+            table
+                // Disable borders
+                .load_preset(presets::NOTHING)
+                // Add header
+                .set_header(
+                    ["Repository name", "Packages", "Source"]
+                        .into_iter()
+                        .map(|header| {
+                            Cell::new(header)
+                                .add_attribute(Attribute::Bold)
+                                .add_attribute(Attribute::Underlined)
+                        }),
+                );
+
+            table.add_rows(db.repositories.values().map(|repo| {
+                [
+                    Cell::new(&repo.content.name).fg(Color::Blue),
+                    Cell::new(repo.content.packages.len().to_string()).fg(Color::Yellow),
+                    Cell::new(&repo.source.location).fg(Color::Magenta),
+                ]
+            }));
+
+            println!("{table}");
+        }
+
+        Action::BinPath => println!("{}", db.bin_dir().display()),
     }
 
     Ok(())
-}
-
-fn save_app_state(state_file_path: &Path, app_state: &AppData) -> Result<()> {
-    debug!("Application's state changed, flushing to disk.");
-
-    let app_data_str =
-        serde_json::to_string(app_state).context("Failed to serialize application's data")?;
-
-    fs::write(state_file_path, app_data_str).context("Failed to write application's data to disk")
-}
-
-fn save_repositories(repositories_file_path: &Path, repositories: &Repositories) -> Result<()> {
-    debug!("Repositories changed, flushing to disk.");
-
-    let repositories_str =
-        serde_json::to_string(repositories).context("Failed to serialize the repositories")?;
-
-    fs::write(repositories_file_path, repositories_str)
-        .context("Failed to write the repositories to disk")
 }

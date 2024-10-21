@@ -1,0 +1,228 @@
+name "AutoDotFiles"
+description "Repository for AutoDotFiles"
+packages {
+  "bat": GitHub "sharkdp/bat" version(TagName) {
+    linux[x86_64]   "-x86_64-unknown-linux-musl.tar.gz$" archive(TarGz) { bin "bat-.*/bat$" },
+    linux[aarch64]  "-aarch64-unknown-linux-gnu.tar.gz$" archive(TarGz) { bin "bat-.*/bat$" },
+    windows[x86_64] "-x86_64-pc-windows-msvc.zip$"       archive(Zip)   { bin "/bat.exe$" }
+  }
+
+  "btop": GitHub "aristocratos/btop" version(TagName) {
+    linux[x86_64]  "^btop-x86_64-linux-musl.tbz$"  archive(TarGz) { bin "/btop$" },
+    linux[aarch64] "^btop-aarch64-linux-musl.tbz$" archive(TarGz) { bin "/btop$" }
+  }
+
+  "bottom": GitHub "ClementTsang/bottom" version(TagName) {
+    linux[x86_64]   "^bottom_x86_64-unknown-linux-musl.tar.gz"   archive(TarGz) { bin "^btm$" },
+    linux[aarch64]  "^bottom_aarch64-unknown-linux-musl.tar.gz$" archive(TarGz) { bin "^btm$" },
+    windows[x86_64] "^bottom_x86_64-pc-windows-msvc.zip$"        archive(Zip)   { bin "^btm.exe$" }
+  }
+
+  "caddy": GitHub "caddyserver/caddy" version(TagName) {
+    linux[x86_64]   "_linux_amd64.tar.gz$" archive(TarGz) { bin "^caddy$" },
+    linux[aarch64]  "_linux_arm64.tar.gz$" archive(TarGz) { bin "^caddy$" }
+  }
+  
+  "carapace": GitHub "carapace-sh/carapace-bin" version(TagName) {
+    linux[x86_64]   "^carapace-bin_linux_amd64.tar.gz$" archive(TarGz) { bin "^carapace$" },
+    linux[aarch64]  "^carapace-bin_linux_arm64.tar.gz$" archive(TarGz) { bin "^carapace$" },
+    windows[x86_64] "^carapace-bin_windows_amd64.zip$"  archive(Zip)   { bin "^carapace.exe$" }
+  }
+
+  "cargo-binstall": GitHub "cargo-bins/cargo-binstall" version(TagName) {
+    linux[x86_64]   "-x86_64-unknown-linux-musl.tgz$"  archive(TarGz) { bin "^cargo-binstall$" },
+    linux[aarch64]  "-aarch64-unknown-linux-musl.tgz$" archive(TarGz) { bin "^cargo-binstall$" },
+    windows[x86_64] "-x86_64-pc-windows-msvc.zip$"     archive(Zip)   { bin "^cargo-binstall.exe$" }
+  }
+
+  "cross": GitHub "cross-rs/cross" version(TagName) {
+    linux[x86_64] "^cross-x86_64-unknown-linux-musl.tar.gz$" archive(TarGz) { bin "^cross$", bin "^cross-util$" },
+    windows[x86_64] "^cross-x86_64-pc-windows-msvc.tar.gz$"  archive(TarGz) { bin "^cross.exe$", bin "^cross-util.exe$" }
+  }
+
+  "coreutils": GitHub "uutils/coreutils" version(TagName) {
+    windows[x86_64] "-x86_64-pc-windows-msvc.zip$" archive(Zip) { bin "/coreutils.exe$" }
+  }
+
+  "erdtree": GitHub "solidiquis/erdtree" version(TagName) {
+    linux[x86_64]   "-x86_64-unknown-linux-gnu.tar.gz$"   archive(TarGz) { bin "^erd$" },
+    linux[aarch64]  "-aarch64-unknown-linux-musl.tar.gz$" archive(TarGz) { bin "^erd$" },
+    windows[x86_64] "-x86_64-pc-windows-msvc.exe$"        bin "erd.exe"
+  }
+
+  "fd": GitHub "sharkdp/fd" version(TagName) {
+    linux[x86_64]   "-x86_64-unknown-linux-musl.tar.gz$" archive(TarGz) { bin "^fd-.*/fd$" },
+    linux[aarch64]  "-aarch64-unknown-linux-gnu.tar.gz$" archive(TarGz) { bin "^fd-.*/fd$" },
+    windows[x86_64] "-x86_64-pc-windows-msvc.zip$"       archive(Zip)   { bin "/fd.exe$" }
+  }
+
+  "ffmpeg": GitHub "BtbN/FFmpeg-Builds" version(ReleaseTitle) {
+    linux[x86_64] "ffmpeg-master-latest-linux64-gpl.tar.xz" archive(TarXz) {
+      bin "/ffmpeg$",
+      bin "/ffplay$",
+      bin "/ffprobe$"
+    },
+
+    linux[aarch64] "ffmpeg-master-latest-linuxarm64-gpl.tar.xz" archive(TarXz) {
+      bin "/ffmpeg$",
+      bin "/ffplay$",
+      bin "/ffprobe$"
+    },
+
+    windows[x86_64] "ffmpeg-master-latest-win64-gpl.zip" archive(Zip) {
+      bin "/ffmpeg.exe$",
+      bin "/ffplay.exe$",
+      bin "/ffprobe.exe$"
+    }
+  }
+
+  "fx": GitHub "antonmedv/fx" version(TagName) {
+    linux[x86_64]   "^fx_linux_amd64$"       bin "fx",
+    linux[aarch64]  "^fx_linux_arm64$"       bin "fx",
+    windows[x86_64] "^fx_windows_amd64.exe$" bin "fx.exe"
+  }
+
+  "fzf": GitHub "junegunn/fzf" version(TagName) {
+    linux[x86_64]   "-linux_amd64.tar.gz$" archive(TarGz) { bin "^fzf$" },
+    linux[aarch64]  "-linux_arm64.tar.gz$" archive(TarGz) { bin "^fzf$" },
+    windows[x86_64] "-windows_amd64.zip"   archive(Zip)   { bin "^fzf.exe"}
+  }
+
+  "gdu": GitHub "dundee/gdu" version(TagName) {
+    linux[x86_64]   "^gdu_linux_amd64.tgz$"       archive(TarGz) { bin "^gdu_linux_amd64$" as "gdu" },
+    linux[aarch64]  "^gdu_linux_arm64.tgz$"       archive(TarGz) { bin "^gdu_linux_arm64$" as "gdu" },
+    windows[x86_64] "^gdu_windows_amd64.exe.zip$" archive(Zip)   { bin "^gdu_windows_amd64.exe$" as "gdu.exe" }
+  }
+
+  "github-cli": GitHub "cli/cli" version(TagName) {
+    linux[x86_64]   "_linux_amd64.tar.gz$" archive(TarGz) { bin "/bin/gh$" },
+    linux[aarch64]  "_linux_arm64.tar.gz$" archive(TarGz) { bin "/bin/gh$" },
+    windows[x86_64] "_windows_amd64.zip$"  archive(Zip)   { bin "/bin/gh.exe$" }
+  }
+
+  "gitui": GitHub "extrawurst/gitui" version(TagName) {
+    linux[x86_64]   "^gitui-linux-x86_64.tar.gz$"    archive(TarGz) { bin "^gitui$" },
+    linux[aarch64]  "^gitui-linux-aarch64.tar.gz$" archive(TarGz) { bin "^gitui$" },
+    windows[x86_64] "^gitui-win.tar.gz$"           archive(TarGz) { bin "^gitui.exe$" }
+  }
+
+  "jumpy": GitHub "ClementNerma/Jumpy" version(TagName) {
+    linux[x86_64]   "^jumpy-x86_64-unknown-linux-musl.tgz$"  archive(TarGz) { bin "^jumpy$" },
+    linux[aarch64]  "^jumpy-aarch64-unknown-linux-musl.tgz$" archive(TarGz) { bin "^jumpy$" },
+    windows[x86_64] "^jumpy-x86_64-pc-windows-gnu.tgz$"      archive(TarGz) { bin "^jumpy.exe$" }
+  }
+
+  "kopia": GitHub "kopia/kopia" version(TagName) {
+    linux[x86_64]   "-linux-x64.tar.gz$"   archive(TarGz) { bin "/kopia$" },
+    linux[aarch64]  "-linux-amd64.tar.gz$" archive(TarGz) { bin "/kopia$" },
+    windows[x86_64] "-windows-x64.tar.gz$" archive(Zip)   { bin "/kopia.exe$" }
+  }
+
+  "lazydocker": GitHub "jesseduffield/lazydocker" version(TagName) {
+    linux[x86_64]   "_Linux_x86_64.tar.gz$" archive(TarGz) { bin "^lazydocker$" },
+    linux[aarch64]  "_Linux_arm64.tar.gz$"  archive(TarGz) { bin "^lazydocker$" },
+    windows[x86_64] "_Windows_x86_64.zip$"  archive(Zip)   { bin "^lazydocker.exe$" }
+  }
+
+  "lsd": GitHub "lsd-rs/lsd" version(TagName) {
+    linux[x86_64]   "-x86_64-unknown-linux-musl.tar.gz$" archive(TarGz) { bin "/lsd$" },
+    linux[aarch64]  "-aarch64-unknown-linux-gnu.tar.gz$" archive(TarGz) { bin "/lsd$" },
+    windows[x86_64] "-x86_64-pc-windows-msvc.zip$" archive(Zip) { bin "/lsd.exe$" }
+  }
+
+  "mise": GitHub "jdx/mise" version(TagName) {
+    linux[x86_64]   "-linux-x64-musl.tar.gz$"   archive(TarGz) { bin "/mise$" },
+    linux[aarch64]  "-linux-arm64-musl.tar.gz$" archive(TarGz) { bin "/mise$" },
+    windows[x86_64] "-win-x64.zip$"             archive(Zip)   { bin "/mise.exe$" }
+  }
+
+  "moar": GitHub "walles/moar" version(TagName) {
+    linux[x86_64]   "-linux-386$"         bin "moar",
+    linux[aarch64]  "-linux-arm$"         bin "moar",
+    windows[x86_64] "-windows-amd64.exe$" bin "moar.exe"
+  }
+
+  "mold": GitHub "rui314/mold" version(TagName) {
+    linux[x86_64]  "-x86_64-linux.tar.gz$"  archive(TarGz) { bin "/bin/mold$" },
+    linux[aarch64] "-aarch64-linux.tar.gz$" archive(TarGz) { bin "/bin/mold$" }
+  }
+
+  "neovim": GitHub "neovim/neovim" version(TagName) {
+    linux[x86_64] "^nvim.appimage$" bin "nvim"
+  }
+
+  "pueue" (requires "pueued"): GitHub "Nukesor/pueue" version(TagName) {
+    linux[x86_64]   "^pueue-linux-x86_64$"       bin "pueue",
+    linux[aarch64]  "^pueue-linux-aarch64$"      bin "pueue",
+    windows[x86_64] "^pueue-windows-x86_64.exe$" bin "pueue.exe"
+  }
+
+  "pueued": GitHub "Nukesor/pueue" version(TagName) {
+    linux[x86_64]   "^pueued-linux-x86_64$"       bin "pueued",
+    linux[aarch64]  "^pueued-linux-aarch64$"      bin "pueued",
+    windows[x86_64] "^pueued-windows-x86_64.exe$" bin "pueued.exe"
+  }
+
+  "ripgrep": GitHub "BurntSushi/ripgrep" version(TagName) {
+    linux[x86_64]   "-x86_64-unknown-linux-musl.tar.gz$" archive(TarGz) { bin "/rg$" },
+    linux[aarch64]  "-aarch64-unknown-linux-gnu.tar.gz$" archive(TarGz) { bin "/rg$" },
+    windows[x86_64] "-x86_64-pc-windows-msvc.zip$"       archive(Zip) { bin "/rg.exe$" }
+  }
+
+  "sidekick": GitHub "MightyMoud/sidekick" version(TagName) {
+    linux[x86_64]   "^sidekick_Linux_x86_64.tar.gz$" archive(TarGz) { bin "sidekick$" },
+    linux[aarch64]  "^sidekick_Linux_arm64.tar.gz$"  archive(TarGz) { bin "sidekick$" },
+    windows[x86_64] "^sidekick_Windows_x86_64.zip$"  archive(TarGz) { bin "sidekick.exe$" }
+  }
+
+  "starship": GitHub "starship/starship" version(TagName) {
+    linux[x86_64]   "^starship-x86_64-unknown-linux-musl.tar.gz$"  archive(TarGz) { bin "^starship$" },
+    linux[aarch64]  "^starship-aarch64-unknown-linux-musl.tar.gz$" archive(TarGz) { bin "^starship$" },
+    windows[x86_64] "^starship-x86_64-pc-windows-msvc.zip$"        archive(Zip)   { bin "^starship.exe$" }
+  }
+
+  "tokei": GitHub "XAMPPRocky/tokei" version(TagName) {
+    linux[x86_64]   "^tokei-x86_64-unknown-linux-musl.tar.gz$" archive(TarGz) { bin "^tokei$" },
+    linux[aarch64]  "^tokei-aarch64-unknown-linux-gnu.tar.gz$" archive(TarGz) { bin "^tokei$" },
+    windows[x86_64] "^tokei-x86_64-pc-windows-msvc.exe$"       bin "tokei.exe"
+  }
+
+  "trasher": GitHub "ClementNerma/Trasher" version(TagName) {
+    linux[x86_64]   "^trasher-x86_64-unknown-linux-musl.tgz$"  archive(TarGz) { bin "^trasher$" },
+    linux[aarch64]  "^trasher-aarch64-unknown-linux-musl.tgz$" archive(TarGz) { bin "^trasher$" },
+    windows[x86_64] "^trasher-x86_64-pc-windows-gnu.tgz$"      archive(TarGz) { bin "^trasher.exe$" }
+  }
+
+  "unison": GitHub "bcpierce00/unison" version(TagName) {
+    linux[x86_64]   "-ubuntu-x86_64.tar.gz$" archive(TarGz) { bin "^bin/unison$" },
+    windows[x86_64] "-windows-x86_64.zip$"   archive(Zip)   { bin "^bin/unison.exe" }
+  }
+
+  "xplr": GitHub "sayanarijit/xplr" version(TagName) {
+    linux[x86_64]  "^xplr-linux-musl.tar.gz$"    archive(TarGz) { bin "^xplr$" },
+    linux[aarch64] "^xplr-linux-aarch64.tar.gz$" archive(TarGz) { bin "^xplr$" }
+  }
+
+  "yazi": GitHub "sxyazi/yazi" version(TagName) {
+    linux[x86_64]   "^yazi-x86_64-unknown-linux-gnu.zip$"  archive(Zip) { bin "/yazi$" },
+    linux[aarch64]  "^yazi-aarch64-unknown-linux-gnu.zip$" archive(Zip) { bin "/yazi$" },
+    windows[x86_64] "^yazi-x86_64-pc-windows-msvc.zip$"    archive(Zip) { bin "/yazi.exe$" }
+  }
+
+  "yt-dlp" (requires "ffmpeg"): GitHub "yt-dlp/yt-dlp-nightly-builds" version(TagName) {
+    linux[x86_64]   "^yt-dlp$"               bin "yt-dlp",
+    linux[aarch64]  "^yt-dlp_linux_aarch64$" bin "yt-dlp",
+    windows[x86_64] "^yt-dlp.exe$"           bin "yt-dlp"
+  }
+
+  "ytdl" (requires "yt-dlp"): GitHub "ClementNerma/ytdl" version(TagName) {
+    linux[x86_64]   "^ytdl-x86_64-unknown-linux-musl.tgz$"  archive(TarGz) { bin "^ytdl$" },
+    linux[aarch64]  "^ytdl-aarch64-unknown-linux-musl.tgz$" archive(TarGz) { bin "^ytdl$" },
+    windows[x86_64] "^ytdl-x86_64-pc-windows-gnu.tgz$"      archive(TarGz) { bin "^ytdl.exe$" }
+  }
+
+  "zellij": GitHub "zellij-org/zellij" version(TagName) {
+    linux[x86_64]  "^zellij-x86_64-unknown-linux-musl.tar.gz$"  archive(TarGz) { bin "^zellij$" },
+    linux[aarch64] "^zellij-aarch64-unknown-linux-musl.tar.gz$" archive(TarGz) { bin "^zellij$" }    
+  }
+}
