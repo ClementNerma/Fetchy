@@ -75,7 +75,12 @@ pub async fn install_pkgs(
         return Ok(());
     }
 
-    if to_install.iter().any(|(pkg, _)| pkg.is_dep) {
+    if to_install.iter().any(|(pkg, _)| pkg.is_dep)
+        || matches!(
+            installed_pkgs_handling,
+            InstalledPackagesHandling::Update | InstalledPackagesHandling::Reinstall
+        )
+    {
         info!(
             "{}",
             format!(
