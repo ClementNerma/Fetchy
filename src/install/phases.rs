@@ -146,7 +146,7 @@ pub async fn determine_install_phases<'a, 'b>(
                         if asset_infos.version == already_installed.version {
                             phases.untouched.no_update_needed.push(pkg);
                         } else {
-                            phases.untouched.update_available.push((pkg, asset_infos));
+                            phases.to_install.needs_updating.push((pkg, asset_infos));
                         }
                     }
 
