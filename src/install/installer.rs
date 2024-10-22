@@ -261,20 +261,22 @@ async fn extract_downloaded_asset(
     state: ExtractionState,
     pb: ProgressBar,
 ) -> Result<ExtractedPackage> {
-    extract_asset(&asset_path, &asset_infos.typ, pb.clone())
-        .await
-        .map(|extracted| {
-            let ExtractionPkgInfo { repo_name, is_dep } =
-                state.pkg_infos.get(&manifest.name).unwrap().clone();
+    let extracted = tokio::task::spawn_blocking(move || {
+        extract_asset(&asset_path, &asset_infos.typ, pb.clone())
+    })
+    .await
+    .context("Faield to wait on Tokio task")??;
 
-            ExtractedPackage {
-                manifest,
-                repo_name,
-                is_dep,
-                version: asset_infos.version,
-                extracted,
-            }
-        })
+    let ExtractionPkgInfo { repo_name, is_dep } =
+        state.pkg_infos.get(&manifest.name).unwrap().clone();
+
+    Ok(ExtractedPackage {
+        manifest,
+        repo_name,
+        is_dep,
+        version: asset_infos.version,
+        extracted,
+    })
 }
 
 struct ExtractedPackage {
