@@ -1,13 +1,14 @@
-use std::path::{Component, Path, PathBuf};
+use std::{
+    fs::{self, File},
+    io::Read,
+    path::{Component, Path, PathBuf},
+};
 
 use anyhow::{bail, Context, Result};
-use async_compression::tokio::bufread::{GzipDecoder, XzDecoder};
 use colored::Colorize;
+use flate2::read::GzDecoder;
 use indicatif::ProgressBar;
-use tokio::{
-    fs::{self, File},
-    io::{AsyncRead, BufReader},
-};
+use xz::read::XzDecoder;
 
 use crate::{
     sources::{ArchiveFormat, AssetType, BinaryInArchive},
@@ -19,11 +20,11 @@ use self::{tar::TarReader, zip::ZipReader};
 mod tar;
 mod zip;
 
-pub trait ArchiveReader {
-    async fn next(&mut self) -> Option<Result<(PathBuf, impl AsyncRead + Unpin)>>;
+trait AssetContentIter {
+    fn next_file(&mut self) -> Option<Result<(PathBuf, impl Read)>>;
 }
 
-pub async fn extract_asset(
+pub fn extract_asset(
     asset_path: &Path,
     content: &AssetType,
     pb: ProgressBar,
@@ -44,27 +45,28 @@ pub async fn extract_asset(
             let extraction_dir = asset_path.with_extension("");
 
             fs::create_dir(&extraction_dir)
-                .await
                 .context("Failed to create a temporary extraction directory")?;
 
-            let file = File::open(&asset_path)
-                .await
-                .context("Failed to open downloaded archive")?;
+            let file = File::open(asset_path).context("Failed to open downloaded archive")?;
 
             match format {
                 ArchiveFormat::TarGz => {
-                    let reader = TarReader::new(GzipDecoder::new(BufReader::new(file)));
-                    extract_archive(reader, files, &extraction_dir, pb.clone()).await
+                    let mut reader = TarReader::new(GzDecoder::new(file));
+                    extract_archive(reader.iter()?, files, &extraction_dir, pb.clone())
                 }
 
                 ArchiveFormat::TarXz => {
-                    let reader = TarReader::new(XzDecoder::new(BufReader::new(file)));
-                    extract_archive(reader, files, &extraction_dir, pb.clone()).await
+                    let mut reader = TarReader::new(XzDecoder::new(file));
+
+                    let now = std::time::Instant::now();
+                    let a = extract_archive(reader.iter()?, files, &extraction_dir, pb.clone());
+                    println!("{}", now.elapsed().as_millis());
+                    a
                 }
 
                 ArchiveFormat::Zip => {
-                    let reader = ZipReader::new(BufReader::new(file)).await?;
-                    extract_archive(reader, files, &extraction_dir, pb.clone()).await
+                    let mut reader = ZipReader::new(file)?;
+                    extract_archive(reader.iter(), files, &extraction_dir, pb.clone())
                 }
             }
         }
@@ -80,8 +82,8 @@ pub struct ExtractedBinary {
     pub name: String,
 }
 
-async fn extract_archive(
-    mut reader: impl ArchiveReader,
+fn extract_archive(
+    mut reader: impl AssetContentIter,
     files: &[BinaryInArchive],
     tmp_dir: &Path,
     pb: ProgressBar,
@@ -95,7 +97,7 @@ async fn extract_archive(
 
     let mut extracted_count = 0;
 
-    while let Some(entry) = reader.next().await {
+    while let Some(entry) = reader.next_file() {
         let (path, mut entry_reader) = entry?;
 
         for (i, file) in files.iter().enumerate() {
@@ -148,10 +150,9 @@ async fn extract_archive(
             let extraction_path = tmp_dir.join(format!("{i}-{name}"));
 
             let mut out_file = File::create_new(&extraction_path)
-                .await
                 .context("Failed to create temporary file to extract binary")?;
 
-            tokio::io::copy(&mut entry_reader, &mut out_file).await?;
+            std::io::copy(&mut entry_reader, &mut out_file)?;
 
             pb.set_message(if extracted_count < files.len() {
                 format!("searching  {}/{}...", extracted_count + 1, files.len())

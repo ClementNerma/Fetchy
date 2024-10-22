@@ -149,7 +149,7 @@ async fn fetch_latest_release(
     repo_name: &str,
     headers: HeaderMap<HeaderValue>,
 ) -> Result<GitHubRelease> {
-    let url = format!("https://api.github.com/repos/{author}/{repo_name}/releases/latest");
+    let url = format!("https://api.github.com/repos/{author}/{repo_name}/releases/181014509");
 
     debug!("Fetching latest release from: {url}");
 

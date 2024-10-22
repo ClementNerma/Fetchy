@@ -1,29 +1,38 @@
-use std::path::PathBuf;
+use std::{io::Read, path::PathBuf};
 
 use anyhow::{Context, Result};
-use tokio::io::{AsyncRead, BufReader};
-use tokio_stream::StreamExt;
-use tokio_tar::{Archive, Entries};
+use tar::{Archive, Entries};
 
-use super::ArchiveReader;
+use super::AssetContentIter;
 
-pub struct TarReader<R: AsyncRead + Unpin> {
-    entries: Entries<BufReader<R>>,
+pub struct TarReader<R: Read> {
+    archive: Archive<R>,
 }
 
-impl<R: AsyncRead + Unpin> TarReader<R> {
+impl<R: Read + Unpin> TarReader<R> {
     pub fn new(read: R) -> Self {
-        let mut archive = Archive::new(BufReader::new(read));
-
         Self {
-            entries: archive.entries().unwrap(),
+            archive: Archive::new(read),
         }
+    }
+
+    pub fn iter(&mut self) -> Result<TarReaderIter<R>> {
+        let entries = self
+            .archive
+            .entries()
+            .context("Failed to get entries from tarball")?;
+
+        Ok(TarReaderIter { entries })
     }
 }
 
-impl<R: AsyncRead + Unpin> ArchiveReader for TarReader<R> {
-    async fn next(&mut self) -> Option<Result<(PathBuf, impl AsyncRead)>> {
-        self.entries.next().await.map(|result| {
+pub struct TarReaderIter<'a, R: Read> {
+    entries: Entries<'a, R>,
+}
+
+impl<'a, R: Read> AssetContentIter for TarReaderIter<'a, R> {
+    fn next_file(&mut self) -> Option<Result<(PathBuf, impl Read)>> {
+        self.entries.next().map(|result| {
             let entry = result.context("Failed to read entry from tarball archive")?;
 
             let path = entry
