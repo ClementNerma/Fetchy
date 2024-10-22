@@ -70,16 +70,16 @@ async fn inner(action: Action) -> Result<()> {
         .context("Failed to get path to the user's app state directory")?
         .join("fetchy");
 
-    if !data_dir.exists() {
-        fs::create_dir_all(&data_dir).await.with_context(|| {
-            format!(
-                "Failed to create the application's state directory at: {}",
-                data_dir.display()
-            )
-        })?;
+    let bin_dir = data_dir.join("bin");
+
+    // Short-circuit before opening (and parsing) the database to make things quicker
+    // This is especially important given that this action may be called on each user shell's startup
+    if matches!(action, Action::BinPath) {
+        println!("{}", bin_dir.display());
+        return Ok(());
     }
 
-    let mut db = Db::open_data_dir(data_dir).await?;
+    let mut db = Db::open_data_dir(data_dir, bin_dir).await?;
 
     let repos = db
         .repositories

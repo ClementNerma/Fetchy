@@ -26,7 +26,7 @@ impl Deref for Db {
 }
 
 impl Db {
-    pub async fn open_data_dir(data_dir: PathBuf) -> Result<Self> {
+    pub async fn open_data_dir(data_dir: PathBuf, bin_dir: PathBuf) -> Result<Self> {
         if !fs::try_exists(&data_dir).await.with_context(|| {
             format!(
                 "Failed to check if data directory exists at path: {}",
@@ -37,8 +37,6 @@ impl Db {
                 format!("Failed to create data directory at: {}", data_dir.display())
             })?;
         }
-
-        let bin_dir = data_dir.join("bin");
 
         if !fs::try_exists(&bin_dir).await.with_context(|| {
             format!(
