@@ -3,8 +3,10 @@ use comfy_table::{presets, Cell, Color, ContentArrangement, Table};
 use log::info;
 
 use crate::{
+    db::data::InstalledPackage,
     install::phases::{PackagesToInstall, UntouchedPackages},
     resolver::ResolvedPkg,
+    sources::AssetInfos,
 };
 
 use super::{phases::InstallPhases, InstalledPackagesHandling};
@@ -41,19 +43,23 @@ pub(super) fn display_install_phases(
         missing_deps.iter().map(|(p, _)| *p),
     );
 
-    display_pkg_phase(
+    display_update_phase(
         "The following package(s) will be updated",
-        needs_updating.iter().map(|(p, _)| *p),
+        needs_updating
+            .iter()
+            .map(|(resolved, asset_infos, installed)| (*resolved, asset_infos, *installed)),
     );
 
     display_pkg_phase(
         "The following installed package(s) will be reinstalled",
-        reinstall.iter().map(|(p, _)| *p),
+        reinstall.iter().map(|(p, _, _)| *p),
     );
 
-    display_pkg_phase(
+    display_update_phase(
         "The following package(s) have an available update",
-        update_available.iter().map(|(p, _)| *p),
+        update_available
+            .iter()
+            .map(|(resolved, asset_infos, installed)| (*resolved, asset_infos, *installed)),
     );
 
     if !discreet {
@@ -102,6 +108,34 @@ pub fn display_pkg_phase<'a, 'b>(title: &str, content: impl Iterator<Item = Reso
             chunk
                 .iter()
                 .map(|pkg| Cell::new(&pkg.manifest.name).fg(Color::Yellow))
+        }));
+
+    info!("{}\n\n{pkgs_table}\n", format!("{title}:").bright_blue());
+}
+
+pub fn display_update_phase<'a, 'b, 'c, 'd>(
+    title: &str,
+    content: impl ExactSizeIterator<Item = (ResolvedPkg<'a, 'b>, &'c AssetInfos, &'d InstalledPackage)>,
+) {
+    // Don't display categories with no package
+    if content.len() == 0 {
+        return;
+    }
+
+    let mut pkgs_table = Table::new();
+
+    pkgs_table
+        // Remove borders
+        .load_preset(presets::NOTHING)
+        // Ask table to take as much width as possible
+        .set_content_arrangement(ContentArrangement::Dynamic)
+        .add_rows(content.map(|(resolved, asset_infos, installed)| {
+            [
+                Cell::new(&resolved.manifest.name).fg(Color::Yellow),
+                Cell::new(&installed.version).fg(Color::DarkCyan),
+                Cell::new("->").fg(Color::Green),
+                Cell::new(&asset_infos.version).fg(Color::DarkCyan),
+            ]
         }));
 
     info!("{}\n\n{pkgs_table}\n", format!("{title}:").bright_blue());

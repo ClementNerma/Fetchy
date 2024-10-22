@@ -1,30 +1,34 @@
 use anyhow::{bail, Result};
 use colored::Colorize;
 
-use crate::{db::Db, resolver::ResolvedPkg, sources::AssetInfos};
+use crate::{
+    db::{data::InstalledPackage, Db},
+    resolver::ResolvedPkg,
+    sources::AssetInfos,
+};
 
 use super::fetch_infos::fetch_resolved_pkg_infos;
 
 #[derive(Default, Debug)]
-pub struct InstallPhases<'a, 'b> {
-    pub untouched: UntouchedPackages<'a, 'b>,
-    pub to_install: PackagesToInstall<'a, 'b>,
+pub struct InstallPhases<'a, 'b, 'c> {
+    pub untouched: UntouchedPackages<'a, 'b, 'c>,
+    pub to_install: PackagesToInstall<'a, 'b, 'c>,
 }
 
 #[derive(Default, Debug)]
-pub struct UntouchedPackages<'a, 'b> {
+pub struct UntouchedPackages<'a, 'b, 'c> {
     pub already_installed: Vec<ResolvedPkg<'a, 'b>>,
     pub already_installed_deps: Vec<ResolvedPkg<'a, 'b>>,
     pub no_update_needed: Vec<ResolvedPkg<'a, 'b>>,
-    pub update_available: Vec<(ResolvedPkg<'a, 'b>, AssetInfos)>,
+    pub update_available: Vec<(ResolvedPkg<'a, 'b>, AssetInfos, &'c InstalledPackage)>,
 }
 
 #[derive(Default, Debug)]
-pub struct PackagesToInstall<'a, 'b> {
+pub struct PackagesToInstall<'a, 'b, 'c> {
     pub missing_pkgs: Vec<(ResolvedPkg<'a, 'b>, AssetInfos)>,
     pub missing_deps: Vec<(ResolvedPkg<'a, 'b>, AssetInfos)>,
-    pub needs_updating: Vec<(ResolvedPkg<'a, 'b>, AssetInfos)>,
-    pub reinstall: Vec<(ResolvedPkg<'a, 'b>, AssetInfos)>,
+    pub needs_updating: Vec<(ResolvedPkg<'a, 'b>, AssetInfos, &'c InstalledPackage)>,
+    pub reinstall: Vec<(ResolvedPkg<'a, 'b>, AssetInfos, &'c InstalledPackage)>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -35,11 +39,11 @@ pub enum InstalledPackagesHandling {
     Reinstall,
 }
 
-pub async fn determine_install_phases<'a, 'b>(
+pub async fn compute_install_phases<'a, 'b, 'c>(
     pkgs: Vec<ResolvedPkg<'a, 'b>>,
     installed_pkgs_handling: InstalledPackagesHandling,
-    db: &Db,
-) -> Result<InstallPhases<'a, 'b>> {
+    db: &'c Db,
+) -> Result<InstallPhases<'a, 'b, 'c>> {
     for pkg in &pkgs {
         if let Some(installed) = db.installed.get(&pkg.manifest.name) {
             if installed.repo_name != pkg.repository.name {
@@ -137,7 +141,11 @@ pub async fn determine_install_phases<'a, 'b>(
                         if asset_infos.version == already_installed.version {
                             phases.untouched.no_update_needed.push(pkg);
                         } else {
-                            phases.untouched.update_available.push((pkg, asset_infos));
+                            phases.untouched.update_available.push((
+                                pkg,
+                                asset_infos,
+                                already_installed,
+                            ));
                         }
                     }
 
@@ -146,12 +154,19 @@ pub async fn determine_install_phases<'a, 'b>(
                         if asset_infos.version == already_installed.version {
                             phases.untouched.no_update_needed.push(pkg);
                         } else {
-                            phases.to_install.needs_updating.push((pkg, asset_infos));
+                            phases.to_install.needs_updating.push((
+                                pkg,
+                                asset_infos,
+                                already_installed,
+                            ));
                         }
                     }
 
                     InstalledPackagesHandling::Reinstall => {
-                        phases.to_install.reinstall.push((pkg, asset_infos));
+                        phases
+                            .to_install
+                            .reinstall
+                            .push((pkg, asset_infos, already_installed));
                     }
                 }
             }

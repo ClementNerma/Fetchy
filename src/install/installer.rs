@@ -28,7 +28,7 @@ use crate::{
 
 use super::{
     extract::{extract_asset, ExtractionResult},
-    phases::{determine_install_phases, InstalledPackagesHandling},
+    phases::{compute_install_phases, InstalledPackagesHandling},
 };
 
 pub async fn install_pkgs(
@@ -39,7 +39,7 @@ pub async fn install_pkgs(
 ) -> Result<()> {
     let start = Instant::now();
 
-    let phases = determine_install_phases(pkgs, installed_pkgs_handling, db).await?;
+    let phases = compute_install_phases(pkgs, installed_pkgs_handling, db).await?;
 
     let InstallPhases {
         untouched: _,
@@ -55,8 +55,13 @@ pub async fn install_pkgs(
     let to_install = missing_pkgs
         .iter()
         .chain(missing_deps)
-        .chain(needs_updating)
-        .chain(reinstall)
+        .map(|(resolved, asset_infos)| (*resolved, asset_infos))
+        .chain(
+            needs_updating
+                .iter()
+                .chain(reinstall)
+                .map(|(resolved, asset_infos, _)| (*resolved, asset_infos)),
+        )
         .collect::<Vec<_>>();
 
     if to_install.is_empty() && discreet {
@@ -105,7 +110,7 @@ pub async fn install_pkgs(
     let (tmp_dir, extracted) = download_assets_and(
         to_install
             .iter()
-            .map(|(pkg, asset_infos)| (pkg.manifest.clone(), asset_infos.clone()))
+            .map(|(pkg, asset_infos)| (pkg.manifest.clone(), (*asset_infos).clone()))
             .collect(),
         state,
         extract_downloaded_asset,
@@ -189,6 +194,9 @@ pub async fn install_pkgs(
 
     pb.finish_and_clear();
 
+    let pkg_count = to_install.len();
+    drop(to_install);
+
     db.update(|db| {
         for pkg in extracted {
             let ExtractedPackage {
@@ -223,7 +231,7 @@ pub async fn install_pkgs(
 
     info!(
         "Successfully installed {} package(s) in {} second(s)!",
-        to_install.len().to_string().bright_yellow(),
+        pkg_count.to_string().bright_yellow(),
         start.elapsed().as_secs().to_string().bright_magenta()
     );
 

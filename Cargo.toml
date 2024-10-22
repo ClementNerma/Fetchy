@@ -1,6 +1,6 @@
 [package]
 name = "fetchy"
-version = "0.13.4"
+version = "0.13.5"
 edition = "2021"
 description = "Quick packages installer"
 license = "Apache-2.0"
@@ -29,4 +29,7 @@ tar = "0.4.42"
 tempfile = "3.13.0"
 tokio = { version = "1.40.0", features = ["fs", "macros", "rt-multi-thread"] }
 xz = "0.1.0"
-zip = { version = "2.2.0", default-features = false, features = ["deflate", "deflate64"] }
+zip = { version = "2.2.0", default-features = false, features = [
+    "deflate",
+    "deflate64",
+] }
