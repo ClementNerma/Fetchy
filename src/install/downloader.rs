@@ -48,7 +48,8 @@ pub async fn download_assets_and<
         let pb = multi.add(
             ProgressBar::new_spinner()
                 .with_style(SPINNER_PROGRESS_BAR_STYLE.clone())
-                .with_prefix(format!("{:largest_pkg_name$} ", pkg.name)),
+                .with_prefix(format!("{:largest_pkg_name$} ", pkg.name))
+                .with_message(asset_infos.version.clone()),
         );
 
         pb.enable_steady_tick(Duration::from_millis(125));
