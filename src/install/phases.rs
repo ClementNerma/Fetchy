@@ -27,6 +27,7 @@ pub struct PackagesToInstall<'a, 'b> {
     pub reinstall: Vec<(ResolvedPkg<'a, 'b>, AssetInfos)>,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum InstalledPackagesHandling {
     Ignore,
     CheckUpdates,

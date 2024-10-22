@@ -7,15 +7,19 @@ use crate::{
     resolver::ResolvedPkg,
 };
 
-use super::phases::InstallPhases;
+use super::{phases::InstallPhases, InstalledPackagesHandling};
 
-pub(super) fn display_install_phases(phases: &InstallPhases, discreet: bool) {
+pub(super) fn display_install_phases(
+    phases: &InstallPhases,
+    installed_pkgs_handling: InstalledPackagesHandling,
+    discreet: bool,
+) {
     let InstallPhases {
         untouched:
             UntouchedPackages {
                 already_installed,
                 already_installed_deps,
-                no_update_needed: _,
+                no_update_needed,
                 update_available,
             },
         to_install:
@@ -53,20 +57,27 @@ pub(super) fn display_install_phases(phases: &InstallPhases, discreet: bool) {
     );
 
     if !discreet {
-        // display_pkg_phase(
-        //     "The following package(s) are already on their latest version",
-        //     no_update_needed.iter().copied(),
-        // );
+        if matches!(
+            installed_pkgs_handling,
+            InstalledPackagesHandling::CheckUpdates
+        ) {
+            display_pkg_phase(
+                "The following package(s) are already on their latest version",
+                no_update_needed.iter().copied(),
+            );
+        }
 
-        display_pkg_phase(
-            "The following package(s) are already installed and require no action",
-            already_installed.iter().copied(),
-        );
+        if matches!(installed_pkgs_handling, InstalledPackagesHandling::Ignore) {
+            display_pkg_phase(
+                "The following package(s) are already installed and require no action",
+                already_installed.iter().copied(),
+            );
 
-        display_pkg_phase(
-            "The following dependency package(s) are already installed and require no action",
-            already_installed_deps.iter().copied(),
-        );
+            display_pkg_phase(
+                "The following dependency package(s) are already installed and require no action",
+                already_installed_deps.iter().copied(),
+            );
+        }
     }
 }
 

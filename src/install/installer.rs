@@ -63,7 +63,7 @@ pub async fn install_pkgs(
         return Ok(());
     }
 
-    display_install_phases(&phases, discreet);
+    display_install_phases(&phases, installed_pkgs_handling, discreet);
 
     if to_install.is_empty() {
         info!("Nothing to do!");
