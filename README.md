@@ -6,6 +6,7 @@ It is designed to be very simple to use, to not require any central platform for
 
 
 - [Features](#features)
+- [Demo](#demo)
 - [Step-by-step guide](#step-by-step-guide)
 - [Private packages on GitHub](#private-packages-on-github)
 - [Rate limiting](#rate-limiting)
@@ -63,7 +64,7 @@ Next we have a list of every platform there is an asset for in the releases. The
 
 We then describe what the asset it. Here we have an archive with the `.tar.gz` extension, containing one single binary every time. We also use regular expressions to match the files inside the archive. By default, the extracted binary will keep the name it had in the archive file, but you can also provide a new name for it.
 
-If you want a more complete example, you can check the repository [I personally use](./examples/repository.fetchy), which is a lot more complete and uses more advanced features.
+If you want a more complete example, you can check the repository [I personally use](./examples/example.fetchy), which is a lot more complete and uses more advanced features.
 
 For now, write this in a file somewhere, and run `fetchy add-repo <path to your file>`. It will be internally compiled, checked (any error will be reported to you) and added to the program's database.
 
