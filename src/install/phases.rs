@@ -68,7 +68,6 @@ pub async fn determine_install_phases<'a, 'b>(
             untouched: UntouchedPackages {
                 already_installed,
                 already_installed_deps,
-
                 no_update_needed: vec![],
                 update_available: vec![],
             },

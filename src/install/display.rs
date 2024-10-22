@@ -15,7 +15,7 @@ pub(super) fn display_install_phases(phases: &InstallPhases, discreet: bool) {
             UntouchedPackages {
                 already_installed,
                 already_installed_deps,
-                no_update_needed,
+                no_update_needed: _,
                 update_available,
             },
         to_install:
@@ -53,10 +53,10 @@ pub(super) fn display_install_phases(phases: &InstallPhases, discreet: bool) {
     );
 
     if !discreet {
-        display_pkg_phase(
-            "The following package(s) are already on their latest version",
-            no_update_needed.iter().copied(),
-        );
+        // display_pkg_phase(
+        //     "The following package(s) are already on their latest version",
+        //     no_update_needed.iter().copied(),
+        // );
 
         display_pkg_phase(
             "The following package(s) are already installed and require no action",
