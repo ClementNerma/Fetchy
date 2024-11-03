@@ -67,6 +67,7 @@ async fn main() -> ExitCode {
 
 async fn inner(action: Action) -> Result<()> {
     let data_dir = dirs::state_dir()
+        .or_else(dirs::data_local_dir)
         .context("Failed to get path to the user's app state directory")?
         .join("fetchy");
 
