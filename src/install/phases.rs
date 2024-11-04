@@ -163,10 +163,15 @@ pub async fn compute_install_phases<'a, 'b, 'c>(
                     }
 
                     InstalledPackagesHandling::Reinstall => {
-                        phases
-                            .to_install
-                            .reinstall
-                            .push((pkg, asset_infos, already_installed));
+                        // Don't reinstall unchanged dependencies
+                        if pkg.is_dep && asset_infos.version == already_installed.version {
+                            phases.untouched.already_installed_deps.push(pkg);
+                        } else {
+                            phases
+                                .to_install
+                                .reinstall
+                                .push((pkg, asset_infos, already_installed));
+                        }
                     }
                 }
             }
