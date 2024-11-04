@@ -151,6 +151,8 @@ pub async fn install_pkgs(
                             clashing_pkg.get().name.bright_yellow()
                         )
                     }
+
+                    flattened_bins.push(binary);
                 }
 
                 Entry::Vacant(vacant) => {
@@ -292,6 +294,7 @@ async fn extract_downloaded_asset(
     })
 }
 
+#[derive(Debug)]
 struct ExtractedPackage {
     manifest: PackageManifest,
     repo_name: String,

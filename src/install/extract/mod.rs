@@ -80,10 +80,12 @@ pub fn extract_asset(
     }
 }
 
+#[derive(Debug)]
 pub struct ExtractionResult {
     pub binaries: Vec<ExtractedBinary>,
 }
 
+#[derive(Debug)]
 pub struct ExtractedBinary {
     pub path: PathBuf,
     pub name: String,
