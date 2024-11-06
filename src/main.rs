@@ -112,7 +112,7 @@ async fn inner(action: Action) -> Result<()> {
             .await?;
         }
 
-        Action::Update { names, force } => {
+        Action::Update { names } => {
             let pkgs = if !names.is_empty() {
                 resolve_installed_pkgs_by_name(&names, &db.installed, &repos)?
             } else {
@@ -125,17 +125,7 @@ async fn inner(action: Action) -> Result<()> {
                 .map(refresh_pkg)
                 .collect::<Result<Vec<_>, _>>()?;
 
-            install_pkgs(
-                pkgs,
-                if force {
-                    InstalledPackagesHandling::Reinstall
-                } else {
-                    InstalledPackagesHandling::Update
-                },
-                &mut db,
-                false,
-            )
-            .await?;
+            install_pkgs(pkgs, InstalledPackagesHandling::Update, &mut db, false).await?;
         }
 
         Action::Uninstall { names, deps } => {

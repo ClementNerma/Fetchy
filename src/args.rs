@@ -44,9 +44,6 @@ pub enum Action {
     Update {
         #[clap(help = "Only update some package(s)")]
         names: Vec<String>,
-
-        #[clap(short, long, help = "Reinstall the packages")]
-        force: bool,
     },
 
     #[clap(about = "Uninstall package(s)")]
