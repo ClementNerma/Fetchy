@@ -280,7 +280,7 @@ async fn extract_downloaded_asset(
         extract_asset(&asset_path, &asset_infos.typ, pb.clone())
     })
     .await
-    .context("Faield to wait on Tokio task")??;
+    .context("Failed to wait on Tokio task")??;
 
     let ExtractionPkgInfo { repo_name, is_dep } =
         state.pkg_infos.get(&manifest.name).unwrap().clone();
