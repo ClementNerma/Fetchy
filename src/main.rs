@@ -91,7 +91,7 @@ async fn inner(action: Action) -> Result<()> {
     match action {
         Action::Install {
             names,
-            force,
+            reinstall,
             check_updates,
             discreet,
         } => {
@@ -99,7 +99,7 @@ async fn inner(action: Action) -> Result<()> {
 
             install_pkgs(
                 pkgs,
-                if force {
+                if reinstall {
                     InstalledPackagesHandling::Reinstall
                 } else if check_updates {
                     InstalledPackagesHandling::CheckUpdates

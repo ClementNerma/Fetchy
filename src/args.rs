@@ -25,13 +25,13 @@ pub enum Action {
         // #[clap(short, long, help = "Install from a specific repository")]
         // repo: Option<String>,
         //
-        #[clap(short, long, help = "Reinstall the package if it's already installed")]
-        force: bool,
+        #[clap(short, long, help = "Reinstall the package(s) if already installed")]
+        reinstall: bool,
 
         #[clap(
             short,
             long,
-            conflicts_with = "force",
+            conflicts_with = "reinstall",
             help = "Check updates of installed packages"
         )]
         check_updates: bool,
