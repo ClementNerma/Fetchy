@@ -64,11 +64,7 @@ pub fn extract_asset(
 
                 ArchiveFormat::TarXz => {
                     let mut reader = TarReader::new(XzDecoder::new(file));
-
-                    let now = std::time::Instant::now();
-                    let a = extract_archive(reader.iter()?, files, &extraction_dir, pb.clone());
-                    println!("{}", now.elapsed().as_millis());
-                    a
+                    extract_archive(reader.iter()?, files, &extraction_dir, pb.clone())
                 }
 
                 ArchiveFormat::Zip => {
