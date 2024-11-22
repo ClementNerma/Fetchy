@@ -33,7 +33,7 @@ pub struct ZipReaderIter<'a, R: Read + Seek> {
     files: Range<usize>,
 }
 
-impl<'a, R: Read + Seek> AssetContentIter for ZipReaderIter<'a, R> {
+impl<R: Read + Seek> AssetContentIter for ZipReaderIter<'_, R> {
     fn next_file(&mut self) -> Option<Result<(PathBuf, impl Read)>> {
         self.files.next().map(move |idx| {
             let entry = self

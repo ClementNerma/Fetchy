@@ -30,7 +30,7 @@ pub struct TarReaderIter<'a, R: Read> {
     entries: Entries<'a, R>,
 }
 
-impl<'a, R: Read> AssetContentIter for TarReaderIter<'a, R> {
+impl<R: Read> AssetContentIter for TarReaderIter<'_, R> {
     fn next_file(&mut self) -> Option<Result<(PathBuf, impl Read)>> {
         self.entries.next().map(|result| {
             let entry = result.context("Failed to read entry from tarball archive")?;
