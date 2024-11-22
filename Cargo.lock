@@ -27,6 +27,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "annotate-snippets"
+version = "0.11.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24e35ed54e5ea7997c14ed4c70ba043478db1112e98263b3b035907aa197d991"
+dependencies = [
+ "anstyle",
+ "unicode-width 0.1.14",
+]
+
+[[package]]
 name = "anstream"
 version = "0.6.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -391,7 +401,7 @@ checksum = "486f806e73c5707928240ddc295403b1b93c96a02038563881c4a2fd84b81ac4"
 
 [[package]]
 name = "fetchy"
-version = "0.13.11"
+version = "0.13.12"
 dependencies = [
  "anyhow",
  "clap",
@@ -1133,6 +1143,7 @@ version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b487fc1ef1746624f8a8847f689ed1081c255a3cbde008f99d1551f65ed7cdae"
 dependencies = [
+ "annotate-snippets",
  "perfect-derive",
 ]
 

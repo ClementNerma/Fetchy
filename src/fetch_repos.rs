@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, bail, Context, Result};
 use owo_colors::OwoColorize;
-use parsy::{LocationInString, Parser};
+use parsy::{ErrorReport, Parser};
 use serde::{Deserialize, Serialize};
 use tokio::{fs, task::JoinSet};
 
@@ -63,18 +63,10 @@ pub async fn fetch_repository(source: &RepositorySource) -> Result<Repository> {
             .parse_str(&repo_str)
             .map(|parsed| parsed.data)
             .map_err(|err| {
-                let LocationInString { line, col } =
-                    err.inner().at().start.compute_offset_in(&repo_str).unwrap();
+                let location = format!("{location}");
+                let err = ErrorReport::parsing_error(&repo_str, &location, &err);
 
-                anyhow!(
-                    "Failed to parse repository at {location}: parsing error at line {} column {}: {}",
-                    line + 1,
-                    col + 1,
-                    err.critical_message()
-                        .map(str::to_owned)
-                        .or_else(|| err.atomic_error().map(str::to_owned))
-                        .unwrap_or_else(|| format!("{}", err.inner().expected()))
-                )
+                anyhow!("{}", format!("{err}",).default_color())
             })?
     };
 

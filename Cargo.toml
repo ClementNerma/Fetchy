@@ -1,6 +1,6 @@
 [package]
 name = "fetchy"
-version = "0.13.11"
+version = "0.13.12"
 edition = "2021"
 description = "Quick packages installer"
 license = "Apache-2.0"
@@ -18,7 +18,7 @@ jiff = { version = "0.1.14", features = ["serde"] }
 log = { version = "0.4.22", features = ["std"] }
 openssl-sys = { version = "0.9.104", features = ["vendored"] }
 owo-colors = "4.1.0"
-parsy = "0.9.1"
+parsy = { version = "0.9.1", features = ["error-reporting"] }
 paste = "1.0.15"
 rapidfuzz = "0.5.0"
 regex = "1.11.1"
