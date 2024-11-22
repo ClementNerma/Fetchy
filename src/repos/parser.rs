@@ -30,13 +30,13 @@ pub fn repository() -> impl Parser<Repository> {
         )
         .then_ignore(char('"').critical("expected a closing quote after the string"));
 
-    let system = choice::<_, System>((
+    let system = choice::<System, _>((
         just("linux").to(System::linux),
         just("windows").to(System::windows),
     ))
     .atomic_err("expected a valid system name");
 
-    let cpu_arch = choice::<_, CpuArch>((
+    let cpu_arch = choice::<CpuArch, _>((
         just("x86_64").to(CpuArch::x86_64),
         just("aarch64").to(CpuArch::aarch64),
     ))
@@ -47,7 +47,7 @@ pub fn repository() -> impl Parser<Repository> {
         .then(cpu_arch)
         .then_ignore(char(']').critical_with_no_message());
 
-    let pattern = string.and_then_str(|string| {
+    let pattern = string.and_then_or_str_err(|string| {
         Regex::new(&string)
             .map(Pattern)
             .map_err(|err| format!("Invalid regex {string:?} provided: {err}"))
@@ -67,14 +67,14 @@ pub fn repository() -> impl Parser<Repository> {
             rename_as,
         });
 
-    let archive_format = choice::<_, ArchiveFormat>((
+    let archive_format = choice::<ArchiveFormat, _>((
         just("archive(TarGz)").to(ArchiveFormat::TarGz),
         just("archive(TarXz)").to(ArchiveFormat::TarXz),
         just("archive(Zip)").to(ArchiveFormat::Zip),
     ))
     .atomic_err("expected a valid archive format");
 
-    let asset_content = choice::<_, AssetType>((
+    let asset_content = choice::<AssetType, _>((
         just("bin")
             .ignore_then(s.critical_with_no_message())
             .ignore_then(string.critical("expected a binary filename"))
@@ -98,7 +98,7 @@ pub fn repository() -> impl Parser<Repository> {
         .then(string.critical("expected an URL"))
         .then_ignore(s.critical_with_no_message())
         .then(asset_content.critical("expected a file extraction"))
-        .map::<_, PlatformDependentEntry<(String, AssetType)>>(
+        .map::<PlatformDependentEntry<(String, AssetType)>, _>(
             |(((system, cpu_arch), asset_pattern), file_extraction)| {
                 PlatformDependentEntry::new(system, cpu_arch, (asset_pattern, file_extraction))
             },
@@ -131,7 +131,7 @@ pub fn repository() -> impl Parser<Repository> {
         .then(pattern.critical("expected an asset pattern"))
         .then_ignore(s.critical_with_no_message())
         .then(asset_content.critical("expected a file extraction"))
-        .map::<_, PlatformDependentEntry<(Pattern, AssetType)>>(
+        .map::<PlatformDependentEntry<(Pattern, AssetType)>, _>(
             |(((system, cpu_arch), asset_pattern), file_extraction)| {
                 PlatformDependentEntry::new(system, cpu_arch, (asset_pattern, file_extraction))
             },
@@ -139,7 +139,7 @@ pub fn repository() -> impl Parser<Repository> {
 
     let github_source_params = string
         .critical("expected a repository name")
-        .and_then_str(|string| {
+        .and_then_or_str_err(|string| {
             let mut split = string.split('/');
             let user = split.next().unwrap();
             let repo = split.next().ok_or("Missing repo name after user")?;
@@ -153,7 +153,7 @@ pub fn repository() -> impl Parser<Repository> {
         .then_ignore(s.critical_with_no_message())
         .then_ignore(just("version(").critical_with_no_message())
         .then(
-            choice::<_, GitHubVersionExtraction>((
+            choice::<GitHubVersionExtraction, _>((
                 just("TagName").to(GitHubVersionExtraction::TagName),
                 just("ReleaseTitle").to(GitHubVersionExtraction::ReleaseTitle),
             ))
@@ -191,7 +191,7 @@ pub fn repository() -> impl Parser<Repository> {
         .then_ignore(char(':').critical_with_no_message())
         .then_ignore(msnl)
         .then(
-            choice::<_, DownloadSource>((
+            choice::<DownloadSource, _>((
                 just("Direct")
                     .ignore_then(s.critical_with_no_message())
                     .ignore_then(
