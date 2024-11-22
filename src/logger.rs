@@ -1,5 +1,5 @@
-use colored::Colorize;
 use log::{Level, LevelFilter, Log, Metadata, Record, SetLoggerError};
+use owo_colors::OwoColorize;
 
 pub struct Logger {
     level: LevelFilter,
@@ -28,15 +28,13 @@ impl Log for Logger {
 
         let msg = record.args().to_string();
 
-        let colored = match record.level() {
-            Level::Error => msg.bright_red(),
-            Level::Warn => msg.bright_yellow(),
-            Level::Info => msg.bright_blue(),
-            Level::Debug => msg.bright_magenta(),
-            Level::Trace => msg.bright_black(),
-        };
-
-        eprintln!("{colored}");
+        match record.level() {
+            Level::Error => eprintln!("{}", msg.bright_red()),
+            Level::Warn => eprintln!("{}", msg.bright_yellow()),
+            Level::Info => eprintln!("{}", msg.bright_blue()),
+            Level::Debug => eprintln!("{}", msg.bright_magenta()),
+            Level::Trace => eprintln!("{}", msg.bright_black()),
+        }
     }
 
     fn flush(&self) {}

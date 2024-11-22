@@ -5,8 +5,8 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use colored::Colorize;
 use indicatif::{MultiProgress, ProgressBar};
+use owo_colors::OwoColorize;
 use reqwest::Client;
 use tempfile::TempDir;
 use tokio::{fs::File, io::AsyncWriteExt, task::JoinSet};

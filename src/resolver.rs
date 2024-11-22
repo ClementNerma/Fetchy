@@ -1,7 +1,7 @@
 use std::collections::{btree_map::Entry, BTreeMap, HashMap, HashSet, VecDeque};
 
 use anyhow::{bail, Context, Result};
-use colored::Colorize;
+use owo_colors::OwoColorize;
 
 use crate::{
     db::data::InstalledPackage,

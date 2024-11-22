@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::{anyhow, bail, Context, Result};
-use colored::Colorize;
+use owo_colors::OwoColorize;
 use parsy::{LocationInString, Parser};
 use serde::{Deserialize, Serialize};
 use tokio::{fs, task::JoinSet};

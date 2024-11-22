@@ -1,6 +1,6 @@
-use colored::Colorize;
 use comfy_table::{presets, Cell, Color, ContentArrangement, Table};
 use log::info;
+use owo_colors::OwoColorize;
 
 use crate::{
     db::data::InstalledPackage,
