@@ -1,5 +1,5 @@
 use anyhow::Result;
-use owo_colors::OwoColorize;
+use colored::Colorize;
 use reqwest::{header::HeaderMap, Url};
 use serde::{Deserialize, Serialize};
 

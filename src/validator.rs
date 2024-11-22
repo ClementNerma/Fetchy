@@ -1,6 +1,6 @@
-use std::sync::LazyLock;
+use std::{fmt::Display, sync::LazyLock};
 
-use owo_colors::{colors::BrightGreen, Color, OwoColorize};
+use colored::Colorize;
 use regex::Regex;
 
 use crate::{
@@ -18,8 +18,8 @@ pub fn validate_repository(repo: &Repository) -> Result<(), Vec<String>> {
     let mut errors = vec![];
 
     macro_rules! validate_name {
-        ($typ: expr, $name: expr, $color_type: ident) => {
-            if let Err(err) = validate_name::<owo_colors::colors::$color_type>($typ, $name) {
+        ($typ: expr, $name: expr, $colorize: ident) => {
+            if let Err(err) = validate_name($typ, $name, Colorize::$colorize) {
                 errors.push(err);
             }
         };
@@ -31,7 +31,7 @@ pub fn validate_repository(repo: &Repository) -> Result<(), Vec<String>> {
         packages,
     } = repo;
 
-    validate_name!("Repository", name, BrightBlue);
+    validate_name!("Repository", name, bright_blue);
 
     for (name, manifest) in packages {
         if *name != manifest.name {
@@ -55,7 +55,7 @@ pub fn validate_repository(repo: &Repository) -> Result<(), Vec<String>> {
             depends_on,
         } = manifest;
 
-        validate_name!("Package", name, BrightYellow);
+        validate_name!("Package", name, bright_yellow);
 
         for depend_on in depends_on {
             if !repo.packages.contains_key(depend_on) {
@@ -112,17 +112,21 @@ pub fn validate_asset_type(typ: &AssetType, errors: &mut Vec<String>) {
 }
 
 pub fn validate_binary_name(bin_name: &str) -> Result<(), String> {
-    validate_name::<BrightGreen>("Binary", bin_name)
+    validate_name("Binary", bin_name, Colorize::bright_green)
 }
 
-fn validate_name<C: Color>(typ: &str, name: &str) -> Result<(), String> {
+fn validate_name<'a, T: Display>(
+    typ: &str,
+    name: &'a str,
+    colorize: impl FnOnce(&'a str) -> T,
+) -> Result<(), String> {
     if NAME_REGEX.is_match(name) {
         Ok(())
     } else {
         Err(
             format!(
                 "{typ} name {} is invalid (name should only contain lowercase and uppercase letters, digits, underscores and dashes)",
-                name.fg::<C>()
+                colorize(name)
             )
         )
     }

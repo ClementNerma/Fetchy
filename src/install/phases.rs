@@ -1,5 +1,5 @@
 use anyhow::{bail, Result};
-use owo_colors::OwoColorize;
+use colored::Colorize;
 
 use crate::{
     db::{data::InstalledPackage, Db},

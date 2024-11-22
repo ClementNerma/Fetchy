@@ -13,9 +13,9 @@ use std::{
 
 use anyhow::{bail, Context, Result};
 use clap::Parser as _;
+use colored::Colorize;
 use comfy_table::{presets, Attribute, Cell, Color, ContentArrangement, Table};
 use log::{error, info, warn};
-use owo_colors::OwoColorize;
 use rapidfuzz::distance::jaro_winkler::BatchComparator;
 use tokio::fs;
 

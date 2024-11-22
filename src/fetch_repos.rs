@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::{anyhow, bail, Context, Result};
-use owo_colors::OwoColorize;
+use colored::Colorize;
 use parsy::{ErrorReport, Parser};
 use serde::{Deserialize, Serialize};
 use tokio::{fs, task::JoinSet};
@@ -66,7 +66,11 @@ pub async fn fetch_repository(source: &RepositorySource) -> Result<Repository> {
                 let location = format!("{location}");
                 let err = ErrorReport::parsing_error(&repo_str, &location, &err);
 
-                anyhow!("{}", format!("{err}",).default_color())
+                // NOTE: I didn't find a way to reset styles here
+                // Error messages are printed in red, but I'd like to only print the error using the
+                // terminal's default style here. But even using an ANSI escape code to reset style
+                // doesn't work for some reason...
+                anyhow!("{}", format!("{err}").white())
             })?
     };
 

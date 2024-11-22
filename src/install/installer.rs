@@ -6,10 +6,10 @@ use std::{
 };
 
 use anyhow::{bail, Context, Result};
+use colored::Colorize;
 use indicatif::ProgressBar;
 use jiff::Zoned;
 use log::info;
-use owo_colors::OwoColorize;
 use tokio::fs;
 
 use crate::{

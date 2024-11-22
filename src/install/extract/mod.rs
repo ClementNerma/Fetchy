@@ -12,9 +12,9 @@ use std::{
 };
 
 use anyhow::{bail, Context, Result};
+use colored::Colorize;
 use flate2::read::GzDecoder;
 use indicatif::ProgressBar;
-use owo_colors::OwoColorize;
 use xz::read::XzDecoder;
 
 use crate::{

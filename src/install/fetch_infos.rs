@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use owo_colors::OwoColorize;
+use colored::Colorize;
 use tokio::task::JoinSet;
 
 use crate::{
