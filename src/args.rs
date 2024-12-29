@@ -22,12 +22,6 @@ pub enum Action {
         #[clap(help = "Name of the package(s) to install", required = true)]
         names: Vec<String>,
 
-        // #[clap(short, long, help = "Install from a specific repository")]
-        // repo: Option<String>,
-        //
-        #[clap(short, long, help = "Reinstall the package(s) if already installed")]
-        reinstall: bool,
-
         #[clap(
             short,
             long,
@@ -38,6 +32,12 @@ pub enum Action {
 
         #[clap(short, long, help = "Display less informations")]
         discreet: bool,
+    },
+
+    #[clap(about = "Re-install some already-installed package(s)")]
+    Reinstall {
+        #[clap(help = "Name of the package(s) to reinstall", required = true)]
+        names: Vec<String>,
     },
 
     #[clap(about = "Update package(s)")]

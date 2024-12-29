@@ -91,7 +91,6 @@ async fn inner(action: Action) -> Result<()> {
     match action {
         Action::Install {
             names,
-            reinstall,
             check_updates,
             discreet,
         } => {
@@ -99,9 +98,7 @@ async fn inner(action: Action) -> Result<()> {
 
             install_pkgs(
                 pkgs,
-                if reinstall {
-                    InstalledPackagesHandling::Reinstall
-                } else if check_updates {
+                if check_updates {
                     InstalledPackagesHandling::CheckUpdates
                 } else {
                     InstalledPackagesHandling::Ignore
@@ -110,6 +107,18 @@ async fn inner(action: Action) -> Result<()> {
                 discreet,
             )
             .await?;
+        }
+
+        Action::Reinstall { names } => {
+            let pkgs = resolve_installed_pkgs_by_name(&names, &db.installed, &repos)?;
+
+            let pkgs = pkgs
+                .into_iter()
+                .map(|(resolved, _)| resolved)
+                .map(refresh_pkg)
+                .collect::<Result<Vec<_>, _>>()?;
+
+            install_pkgs(pkgs, InstalledPackagesHandling::Reinstall, &mut db, false).await?;
         }
 
         Action::Update { names } => {
