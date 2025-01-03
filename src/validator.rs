@@ -6,7 +6,7 @@ use regex::Regex;
 use crate::{
     repos::ast::{DownloadSource, PackageManifest, Repository},
     sources::{
-        direct::DirectSource, github::GitHubSource, AssetSource, AssetType, BinaryInArchive,
+        direct::DirectSource, github::GithubSource, AssetSource, AssetType, BinaryInArchive,
     },
 };
 
@@ -69,7 +69,7 @@ pub fn validate_repository(repo: &Repository) -> Result<(), Vec<String>> {
 
         let param_errors = match source {
             DownloadSource::Direct(params) => DirectSource::validate(params),
-            DownloadSource::GitHub(params) => GitHubSource::validate(params),
+            DownloadSource::GitHub(params) => GithubSource::validate(params),
         };
 
         errors.extend(
@@ -98,13 +98,11 @@ pub fn validate_asset_type(typ: &AssetType, errors: &mut Vec<String>) {
             for file in files {
                 let BinaryInArchive {
                     path_matcher: _,
-                    rename_as,
+                    copy_as,
                 } = file;
 
-                if let Some(rename_as) = rename_as {
-                    if let Err(err) = validate_binary_name(rename_as) {
-                        errors.push(err);
-                    }
+                if let Err(err) = validate_binary_name(copy_as) {
+                    errors.push(err);
                 }
             }
         }

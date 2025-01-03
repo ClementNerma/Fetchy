@@ -43,6 +43,6 @@ ast_friendly! {
 
     pub struct BinaryInArchive {
         pub path_matcher: Pattern,
-        pub rename_as: Option<String>,
+        pub copy_as: String,
     }
 }

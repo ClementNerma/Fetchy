@@ -14,7 +14,7 @@ use crate::{repos::arch::PlatformDependent, utils::join_iter, validator::validat
 use super::{pattern::Pattern, AssetInfos, AssetSource, AssetType};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GitHubSource {
+pub struct GithubSource {
     pub author: String,
     pub repo_name: String,
     pub asset: PlatformDependent<(Pattern, AssetType)>,
@@ -39,7 +39,7 @@ static GITHUB_BASE_HEADERS: LazyLock<HeaderMap> = LazyLock::new(|| {
     ])
 });
 
-impl AssetSource for GitHubSource {
+impl AssetSource for GithubSource {
     fn validate(&self) -> Vec<String> {
         let Self {
             author,

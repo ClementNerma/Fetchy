@@ -10,36 +10,35 @@ use colored::Colorize;
 use indicatif::ProgressBar;
 use jiff::Zoned;
 use log::info;
-use tokio::fs;
+use tokio::sync::RwLock;
 
 use crate::{
     db::{data::InstalledPackage, Db},
     install::{
         display::display_install_phases,
         downloader::download_assets_and,
-        extract::ExtractedBinary,
         phases::{InstallPhases, PackagesToInstall},
     },
     repos::ast::PackageManifest,
     resolver::ResolvedPkg,
-    sources::AssetInfos,
-    utils::{confirm, progress_bar, ITEMS_PROGRESS_BAR_STYLE},
+    sources::{AssetInfos, AssetType},
+    utils::confirm,
 };
 
 use super::{
-    extract::{extract_asset, ExtractionResult},
+    extract::extract_asset,
     phases::{compute_install_phases, InstalledPackagesHandling},
 };
 
 pub async fn install_pkgs(
     pkgs: Vec<ResolvedPkg<'_, '_>>,
     installed_pkgs_handling: InstalledPackagesHandling,
-    db: &mut Db,
+    db: Db,
     discreet: bool,
 ) -> Result<()> {
     let start = Instant::now();
 
-    let phases = compute_install_phases(pkgs, installed_pkgs_handling, db).await?;
+    let phases = compute_install_phases(pkgs, installed_pkgs_handling, &db).await?;
 
     let InstallPhases {
         untouched: _,
@@ -95,33 +94,6 @@ pub async fn install_pkgs(
         }
     }
 
-    let state = ExtractionState {
-        pkg_infos: Arc::new(
-            to_install
-                .iter()
-                .map(|(pkg, _)| {
-                    (
-                        pkg.manifest.name.clone(),
-                        ExtractionPkgInfo {
-                            repo_name: pkg.repository.name.clone(),
-                            is_dep: pkg.is_dep,
-                        },
-                    )
-                })
-                .collect(),
-        ),
-    };
-
-    let (tmp_dir, extracted) = download_assets_and(
-        to_install
-            .iter()
-            .map(|(pkg, asset_infos)| (pkg.manifest.clone(), (*asset_infos).clone()))
-            .collect(),
-        state,
-        extract_downloaded_asset,
-    )
-    .await?;
-
     let mut seen_bins = db
         .installed
         .values()
@@ -129,116 +101,75 @@ pub async fn install_pkgs(
             installed
                 .binaries
                 .iter()
-                .map(|bin| (bin, &installed.manifest))
+                .map(|bin| (bin.as_str(), &installed.manifest))
         })
         .collect::<HashMap<_, _>>();
 
-    let mut flattened_bins = vec![];
-
-    for extracted in &extracted {
-        let ExtractionResult { binaries } = &extracted.extracted;
-
-        flattened_bins.reserve(binaries.len());
+    for (pkg, asset_infos) in &to_install {
+        let binaries = match &asset_infos.typ {
+            AssetType::Binary { copy_as } => vec![copy_as.as_str()],
+            AssetType::Archive { format: _, files } => {
+                files.iter().map(|bin| bin.copy_as.as_str()).collect()
+            }
+        };
 
         for binary in binaries {
-            match seen_bins.entry(&binary.name) {
+            match seen_bins.entry(binary) {
                 Entry::Occupied(clashing_pkg) => {
-                    if extracted.manifest.name != clashing_pkg.get().name {
+                    if pkg.manifest.name != clashing_pkg.get().name {
                         bail!(
                             "Can't install package {} as it exposes the same binary {} than package {}",
-                            extracted.manifest.name.bright_yellow(),
-                            binary.name.bright_green(),
+                            pkg.manifest.name.bright_yellow(),
+                            binary.bright_green(),
                             clashing_pkg.get().name.bright_yellow()
                         )
                     }
-
-                    flattened_bins.push(binary);
                 }
 
                 Entry::Vacant(vacant) => {
-                    vacant.insert(&extracted.manifest);
-                    flattened_bins.push(binary);
+                    vacant.insert(pkg.manifest);
                 }
             }
         }
     }
 
-    let pb = progress_bar(
-        flattened_bins.len(),
-        ITEMS_PROGRESS_BAR_STYLE.clone(),
-        "copying binaries...",
-    );
-
-    for ExtractedBinary { path, name } in &flattened_bins {
-        pb.set_message(format!("Copying binary '{name}'..."));
-
-        let dest = db.bin_dir().join(name);
-
-        fs::copy(path, &dest).await.with_context(|| {
-            format!(
-                "Failed to copy download binary from {} to {}",
-                path.display(),
-                dest.display()
-            )
-        })?;
-
-        #[cfg(target_family = "unix")]
-        {
-            use std::os::unix::fs::PermissionsExt;
-
-            fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755))
-                .await
-                .with_context(|| {
-                    format!(
-                        "Failed to set binary at path '{}' executable",
-                        dest.display()
-                    )
-                })?;
-        }
-
-        pb.inc(1);
-    }
-
-    pb.finish_and_clear();
-
-    let pkg_count = to_install.len();
-    drop(to_install);
-
-    db.update(|db| {
-        for pkg in extracted {
-            let ExtractedPackage {
-                manifest,
-                repo_name,
-                is_dep,
-                version,
-                extracted: ExtractionResult { binaries },
-            } = pkg;
-
-            let installed_as_dep = db
-                .installed
-                .get(&manifest.name)
-                .map(|installed| installed.installed_as_dep)
-                .unwrap_or(is_dep);
-
-            db.installed.insert(
-                manifest.name.clone(),
-                InstalledPackage {
-                    manifest,
-                    repo_name,
-                    version,
-                    binaries: binaries.into_iter().map(|bin| bin.name).collect(),
-                    installed_as_dep,
-                    at: Zoned::now(),
+    let pkg_infos = to_install
+        .iter()
+        .map(|(pkg, asset_infos)| {
+            (
+                pkg.manifest.name.clone(),
+                ExtractionPkgInfo {
+                    repo_name: pkg.repository.name.clone(),
+                    is_dep: pkg.is_dep,
+                    binaries: match &asset_infos.typ {
+                        AssetType::Binary { copy_as } => vec![copy_as.clone()],
+                        AssetType::Archive { format: _, files } => {
+                            files.iter().map(|bin| bin.copy_as.clone()).collect()
+                        }
+                    },
                 },
-            );
-        }
-    })
-    .await
-    .context("Failed to register newly-installed packages")?;
+            )
+        })
+        .collect::<HashMap<_, _>>();
+
+    let to_install_count = to_install.len();
+
+    let to_install = to_install
+        .iter()
+        .map(|(pkg, asset_infos)| (pkg.manifest.clone(), (*asset_infos).clone()))
+        .collect();
+
+    let state = ExtractionState {
+        pkg_infos: Arc::new(pkg_infos),
+        bins_dir: db.bin_dir().to_owned(),
+        db: Arc::new(RwLock::new(db)),
+    };
+
+    let (tmp_dir, _) = download_assets_and(to_install, state, extract_and_install_binaries).await?;
 
     info!(
         "Successfully installed {} package(s) in {} second(s)!",
-        pkg_count.to_string().bright_yellow(),
+        to_install_count.to_string().bright_yellow(),
         start.elapsed().as_secs().to_string().bright_magenta()
     );
 
@@ -261,43 +192,66 @@ pub async fn install_pkgs(
 #[derive(Clone)]
 struct ExtractionState {
     pkg_infos: Arc<HashMap<String, ExtractionPkgInfo>>,
+    bins_dir: PathBuf,
+    db: Arc<RwLock<Db>>,
 }
 
 #[derive(Clone)]
 struct ExtractionPkgInfo {
     repo_name: String,
     is_dep: bool,
+    binaries: Vec<String>,
 }
 
-async fn extract_downloaded_asset(
+async fn extract_and_install_binaries(
     manifest: PackageManifest,
     asset_infos: AssetInfos,
     asset_path: PathBuf,
     state: ExtractionState,
     pb: ProgressBar,
-) -> Result<ExtractedPackage> {
-    let extracted =
-        tokio::task::spawn_blocking(move || extract_asset(&asset_path, &asset_infos.typ, pb))
-            .await
-            .context("Failed to wait on Tokio task")??;
+) -> Result<()> {
+    let pb_bis = pb.clone();
 
-    let ExtractionPkgInfo { repo_name, is_dep } =
-        state.pkg_infos.get(&manifest.name).unwrap().clone();
+    tokio::task::spawn_blocking(move || {
+        extract_asset(&asset_path, &asset_infos.typ, &state.bins_dir, pb)
+    })
+    .await
+    .context("Failed to wait on Tokio task")?
+    .context("Failed to extract downloaded asset")?;
 
-    Ok(ExtractedPackage {
-        manifest,
+    let ExtractionPkgInfo {
         repo_name,
         is_dep,
-        version: asset_infos.version,
-        extracted,
-    })
-}
+        binaries,
+    } = state.pkg_infos.get(&manifest.name).unwrap().clone();
 
-#[derive(Debug)]
-struct ExtractedPackage {
-    manifest: PackageManifest,
-    repo_name: String,
-    version: String,
-    extracted: ExtractionResult,
-    is_dep: bool,
+    pb_bis.set_message("updating database...");
+
+    state
+        .db
+        .write()
+        .await
+        .update(|db| {
+            let installed_as_dep = db
+                .installed
+                .get(&manifest.name)
+                .map(|installed| installed.installed_as_dep)
+                .unwrap_or(is_dep);
+
+            db.installed.insert(
+                manifest.name.clone(),
+                InstalledPackage {
+                    manifest,
+                    repo_name,
+                    version: asset_infos.version,
+                    installed_as_dep,
+                    binaries,
+                    at: Zoned::now(),
+                },
+            );
+        })
+        .await
+        .context("Failed to update database")?;
+
+    Ok(())
 }

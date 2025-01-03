@@ -22,12 +22,7 @@ pub enum Action {
         #[clap(help = "Name of the package(s) to install", required = true)]
         names: Vec<String>,
 
-        #[clap(
-            short,
-            long,
-            conflicts_with = "reinstall",
-            help = "Check updates of installed packages"
-        )]
+        #[clap(short, long, help = "Check updates of installed packages")]
         check_updates: bool,
 
         #[clap(short, long, help = "Display less informations")]

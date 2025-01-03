@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::sources::{direct::DirectSource, github::GitHubSource};
+use crate::sources::{direct::DirectSource, github::GithubSource};
 
 #[macro_export]
 macro_rules! ast_friendly {
@@ -35,5 +35,5 @@ pub struct PackageManifest {
 #[serde(deny_unknown_fields)]
 pub enum DownloadSource {
     Direct(DirectSource),
-    GitHub(GitHubSource),
+    GitHub(GithubSource),
 }

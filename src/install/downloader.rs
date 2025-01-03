@@ -75,7 +75,7 @@ pub async fn download_assets_and<
                 .await
                 .with_context(|| {
                     format!(
-                        "Failed to handle downloaded asset for package {}",
+                        "Failed to downloaded asset for package {}",
                         pkg_name.bright_yellow()
                     )
                 })?;

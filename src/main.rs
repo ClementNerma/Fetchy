@@ -103,7 +103,7 @@ async fn inner(action: Action) -> Result<()> {
                 } else {
                     InstalledPackagesHandling::Ignore
                 },
-                &mut db,
+                db,
                 discreet,
             )
             .await?;
@@ -118,7 +118,7 @@ async fn inner(action: Action) -> Result<()> {
                 .map(refresh_pkg)
                 .collect::<Result<Vec<_>, _>>()?;
 
-            install_pkgs(pkgs, InstalledPackagesHandling::Reinstall, &mut db, false).await?;
+            install_pkgs(pkgs, InstalledPackagesHandling::Reinstall, db, false).await?;
         }
 
         Action::Update { names } => {
@@ -134,7 +134,7 @@ async fn inner(action: Action) -> Result<()> {
                 .map(refresh_pkg)
                 .collect::<Result<Vec<_>, _>>()?;
 
-            install_pkgs(pkgs, InstalledPackagesHandling::Update, &mut db, false).await?;
+            install_pkgs(pkgs, InstalledPackagesHandling::Update, db, false).await?;
         }
 
         Action::Uninstall { names, deps } => {
@@ -337,7 +337,7 @@ async fn inner(action: Action) -> Result<()> {
                 .map(|(resolved, _)| refresh_pkg(*resolved))
                 .collect::<Result<Vec<_>, _>>()?;
 
-            install_pkgs(broken, InstalledPackagesHandling::Reinstall, &mut db, false).await?;
+            install_pkgs(broken, InstalledPackagesHandling::Reinstall, db, false).await?;
         }
 
         Action::Search {

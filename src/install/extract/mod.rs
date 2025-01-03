@@ -6,7 +6,7 @@
 //! and this module requires maximum throughput.
 
 use std::{
-    fs::{self, File},
+    fs::File,
     io::Read,
     path::{Component, Path, PathBuf},
 };
@@ -34,69 +34,56 @@ trait AssetContentIter {
 pub fn extract_asset(
     asset_path: &Path,
     content: &AssetType,
+    bins_dir: &Path,
     pb: ProgressBar,
-) -> Result<ExtractionResult> {
+) -> Result<()> {
     match content {
-        AssetType::Binary { copy_as } => Ok(ExtractionResult {
-            binaries: vec![ExtractedBinary {
-                path: asset_path.to_owned(),
-                name: copy_as.clone(),
-            }],
-        }),
+        AssetType::Binary { copy_as } => {
+            let dest = bins_dir.join(copy_as);
+
+            std::fs::copy(asset_path, &dest)
+                .with_context(|| format!("Failed to copy binary '{copy_as}'"))?;
+
+            apply_bin_perms(&dest)?;
+
+            Ok(())
+        }
 
         AssetType::Archive { format, files } => {
             pb.set_message("opening archive...");
-
-            assert!(asset_path.extension().is_some());
-
-            let extraction_dir = asset_path.with_extension("");
-
-            fs::create_dir(&extraction_dir)
-                .context("Failed to create a temporary extraction directory")?;
 
             let file = File::open(asset_path).context("Failed to open downloaded archive")?;
 
             match format {
                 ArchiveFormat::TarGz => {
                     let mut reader = TarReader::new(GzDecoder::new(file));
-                    extract_archive(reader.iter()?, files, &extraction_dir, pb.clone())
+                    extract_archive(reader.iter()?, files, bins_dir, pb.clone())
                 }
 
                 ArchiveFormat::TarXz => {
                     let mut reader = TarReader::new(XzDecoder::new(file));
-                    extract_archive(reader.iter()?, files, &extraction_dir, pb.clone())
+                    extract_archive(reader.iter()?, files, bins_dir, pb.clone())
                 }
 
                 ArchiveFormat::Zip => {
                     let mut reader = ZipReader::new(file)?;
-                    extract_archive(reader.iter(), files, &extraction_dir, pb.clone())
+                    extract_archive(reader.iter(), files, bins_dir, pb.clone())
                 }
             }
         }
     }
 }
 
-#[derive(Debug)]
-pub struct ExtractionResult {
-    pub binaries: Vec<ExtractedBinary>,
-}
-
-#[derive(Debug)]
-pub struct ExtractedBinary {
-    pub path: PathBuf,
-    pub name: String,
-}
-
 fn extract_archive(
     mut reader: impl AssetContentIter,
     files: &[BinaryInArchive],
-    tmp_dir: &Path,
+    bins_dir: &Path,
     pb: ProgressBar,
-) -> Result<ExtractionResult> {
+) -> Result<()> {
     pb.set_message(format!("searching 1/{}...", files.len()));
 
     let mut extracted = Vec::with_capacity(files.len());
-    extracted.resize_with(files.len(), || None::<(String, ExtractedBinary)>);
+    extracted.resize_with(files.len(), || None::<String>);
 
     let mut paths_in_archive = vec![];
 
@@ -108,7 +95,7 @@ fn extract_archive(
         for (i, file) in files.iter().enumerate() {
             let BinaryInArchive {
                 path_matcher,
-                rename_as,
+                copy_as,
             } = file;
 
             let path_in_archive = simplify_path(&path);
@@ -119,7 +106,7 @@ fn extract_archive(
                 continue;
             }
 
-            if let Some((clashing_path_in_archive, _)) = &extracted[i] {
+            if let Some(clashing_path_in_archive) = &extracted[i] {
                 bail!(
                     "Pattern '{}' matched two different files in archive:\n\n* {}\n* {}",
                     path_matcher.to_string().bright_blue(),
@@ -129,9 +116,9 @@ fn extract_archive(
             }
 
             if let Some((clashing_bin_idx, _)) = extracted.iter().enumerate().find(|(_, entry)| {
-                entry.as_ref().is_some_and(|(other_path_in_archive, _)| {
-                    *other_path_in_archive == path_in_archive
-                })
+                entry
+                    .as_ref()
+                    .is_some_and(|other_path_in_archive| *other_path_in_archive == path_in_archive)
             }) {
                 bail!("File at path '{}' in archive was matched by two different regular expressions:\n\n* {}\n* {}", 
                 path_in_archive.bright_yellow(),
@@ -140,24 +127,22 @@ fn extract_archive(
                 );
             }
 
-            let name = rename_as
-                .as_deref()
-                .unwrap_or_else(|| path_in_archive.split('/').last().unwrap())
-                .to_owned();
-
             extracted_count += 1;
 
             pb.set_message(format!(
-                "extracting {extracted_count}/{}: '{name}'...",
+                "extracting {extracted_count}/{}: '{copy_as}'...",
                 files.len()
             ));
 
-            let extraction_path = tmp_dir.join(format!("{i}-{name}"));
+            let dest = bins_dir.join(copy_as);
 
-            let mut out_file = File::create_new(&extraction_path)
-                .context("Failed to create temporary file to extract binary")?;
+            let mut out_file =
+                File::create(&dest).context("Failed to create temporary file to extract binary")?;
 
-            std::io::copy(&mut entry_reader, &mut out_file)?;
+            std::io::copy(&mut entry_reader, &mut out_file)
+                .with_context(|| format!("Failed to copy binary '{copy_as}'"))?;
+
+            apply_bin_perms(&dest)?;
 
             pb.set_message(if extracted_count < files.len() {
                 format!("searching  {}/{}...", extracted_count + 1, files.len())
@@ -165,36 +150,26 @@ fn extract_archive(
                 "checking end of archive...".to_owned()
             });
 
-            extracted[i] = Some((
-                path_in_archive,
-                ExtractedBinary {
-                    name,
-                    path: extraction_path,
-                },
-            ));
+            extracted[i] = Some(path_in_archive)
         }
     }
 
-    let binaries = extracted
-        .into_iter()
-        .enumerate()
-        .map(|(i, item)| {
-            item.map(|(_, bin)| bin).with_context(|| {
-                format!(
-                    "Pattern '{}' matched none of the archive's files:\n\n{}",
-                    files[i].path_matcher.to_string().bright_blue(),
-                    join_iter(
-                        paths_in_archive
-                            .iter()
-                            .map(|path| format!("* {}", path.bright_yellow())),
-                        "\n"
-                    )
+    for (i, result) in extracted.iter().enumerate() {
+        if result.is_none() {
+            bail!(
+                "Pattern '{}' matched none of the archive's files:\n\n{}",
+                files[i].path_matcher.to_string().bright_blue(),
+                join_iter(
+                    paths_in_archive
+                        .iter()
+                        .map(|path| format!("* {}", path.bright_yellow())),
+                    "\n"
                 )
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+            );
+        }
+    }
 
-    Ok(ExtractionResult { binaries })
+    Ok(())
 }
 
 fn simplify_path(path: &Path) -> String {
@@ -217,4 +192,18 @@ fn simplify_path(path: &Path) -> String {
     }
 
     out.join("/")
+}
+
+fn apply_bin_perms(path: &Path) -> Result<()> {
+    #[cfg(target_family = "unix")]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).with_context(|| {
+            format!(
+                "Failed to set binary at path '{}' executable",
+                path.display()
+            )
+        })
+    }
 }

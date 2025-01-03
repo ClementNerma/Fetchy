@@ -60,10 +60,14 @@ impl<T> PlatformDependent<T> {
         )
     }
 
-    pub fn get_for_current_platform(&self) -> Result<&T> {
+    pub fn get_for(&self, system: System, cpu_arch: CpuArch) -> Result<&T> {
         self.0
-            .get(&(SYSTEM, CPU_ARCH))
-            .with_context(|| format!("No value found for current platform ({CPU_ARCH}, {SYSTEM})"))
+            .get(&(system, cpu_arch))
+            .with_context(|| format!("No value found for provided platform ({CPU_ARCH}, {SYSTEM})"))
+    }
+
+    pub fn get_for_current_platform(&self) -> Result<&T> {
+        self.get_for(SYSTEM, CPU_ARCH)
     }
 }
 

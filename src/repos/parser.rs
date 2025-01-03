@@ -5,7 +5,7 @@ use regex::Regex;
 
 use crate::sources::{
     direct::DirectSource,
-    github::{GitHubSource, GitHubVersionExtraction},
+    github::{GitHubVersionExtraction, GithubSource},
     pattern::Pattern,
     ArchiveFormat, AssetType, BinaryInArchive,
 };
@@ -56,15 +56,13 @@ pub fn repository() -> impl Parser<Repository> {
     let single_file_extraction = just("bin")
         .ignore_then(s.critical_with_no_message())
         .ignore_then(pattern.critical("expected a pattern"))
-        .then(
-            s.ignore_then(just("as"))
-                .ignore_then(s.critical_with_no_message())
-                .ignore_then(string.critical("expected a name for the binary file"))
-                .or_not(),
-        )
-        .map(|(path_matcher, rename_as)| BinaryInArchive {
+        .then_ignore(s)
+        .then_ignore(just("as"))
+        .then_ignore(s.critical_with_no_message())
+        .then(string.critical("expected a name for the binary file"))
+        .map(|(path_matcher, copy_as)| BinaryInArchive {
             path_matcher,
-            rename_as,
+            copy_as,
         });
 
     let archive_format = choice::<ArchiveFormat, _>((
@@ -75,7 +73,7 @@ pub fn repository() -> impl Parser<Repository> {
     .atomic_err("expected a valid archive format");
 
     let asset_content = choice::<AssetType, _>((
-        just("bin")
+        just("as")
             .ignore_then(s.critical_with_no_message())
             .ignore_then(string.critical("expected a binary filename"))
             .map(|copy_as| AssetType::Binary { copy_as }),
@@ -169,7 +167,7 @@ pub fn repository() -> impl Parser<Repository> {
                 .map(PlatformDependent::new),
         )
         .then_ignore(char('}').critical_with_no_message())
-        .map(|(((author, repo_name), version), asset)| GitHubSource {
+        .map(|(((author, repo_name), version), asset)| GithubSource {
             author,
             repo_name,
             version,
