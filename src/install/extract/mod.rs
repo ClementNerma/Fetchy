@@ -199,11 +199,15 @@ fn apply_bin_perms(path: &Path) -> Result<()> {
     {
         use std::os::unix::fs::PermissionsExt;
 
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).with_context(|| {
-            format!(
-                "Failed to set binary at path '{}' executable",
-                path.display()
-            )
-        })
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).with_context(
+            || {
+                format!(
+                    "Failed to set binary at path '{}' executable",
+                    path.display()
+                )
+            },
+        )?;
     }
+
+    Ok(())
 }
