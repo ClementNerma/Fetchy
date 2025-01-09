@@ -384,6 +384,11 @@ async fn inner(action: Action) -> Result<()> {
                 });
             }
 
+            if results.is_empty() {
+                warn!("No package found matching the provided search criterias.");
+                return Ok(());
+            }
+
             let comparator = BatchComparator::new(pattern.to_string().chars());
 
             let relevance = |manifest: &PackageManifest| {
