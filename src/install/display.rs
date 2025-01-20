@@ -11,6 +11,7 @@ use crate::{
 
 use super::{phases::InstallPhases, InstalledPackagesHandling};
 
+/// Display install phases (packages/dependencies that are going to be installed, updated, etc.)
 pub(super) fn display_install_phases(
     phases: &InstallPhases,
     installed_pkgs_handling: InstalledPackagesHandling,
@@ -89,6 +90,7 @@ pub(super) fn display_install_phases(
 
 static PKGS_PER_ROW: usize = 5;
 
+/// Display a single package phase
 pub fn display_pkg_phase<'a, 'b>(title: &str, content: impl Iterator<Item = ResolvedPkg<'a, 'b>>) {
     let content = content.collect::<Vec<_>>();
 
@@ -113,6 +115,7 @@ pub fn display_pkg_phase<'a, 'b>(title: &str, content: impl Iterator<Item = Reso
     info!("{}\n\n{pkgs_table}\n", format!("{title}:").bright_blue());
 }
 
+/// Display an update phase
 pub fn display_update_phase<'a, 'b, 'c, 'd>(
     title: &str,
     content: impl ExactSizeIterator<Item = (ResolvedPkg<'a, 'b>, &'c AssetInfos, &'d InstalledPackage)>,
