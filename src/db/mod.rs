@@ -59,7 +59,12 @@ impl Db {
                 .await
                 .context("Failed to read database file")?;
 
-            serde_json::from_str(&data).context("Failed to parse database file")?
+            serde_json::from_str(&data).with_context(|| {
+                format!(
+                    "Failed to parse database file at: {}",
+                    db_path.to_string_lossy()
+                )
+            })?
         } else {
             AppData::default()
         };
