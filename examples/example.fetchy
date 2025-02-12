@@ -35,6 +35,12 @@ packages {
     windows[x86_64] "-x86_64-pc-windows-msvc.zip$"     archive(Zip)   { bin "^cargo-binstall.exe$" as "cargo-binstall.exe" }
   }
 
+  "croc": GitHub "schollz/croc" version(TagName) {
+    linux[x86_64]   "_Linux-64bit.tar.gz$" archive(TarGz) { bin "^croc$" as "croc" },
+    linux[aarch64]  "_Linux-ARM64.tar.gz$" archive(TarGz) { bin "^croc$" as "croc" },
+    windows[x86_64] "_Windows-64bit.zip$"  archive(Zip)   { bin "^croc.exe$" as "croc.exe" }
+  }
+
   "cross": GitHub "cross-rs/cross" version(TagName) {
     linux[x86_64] "^cross-x86_64-unknown-linux-musl.tar.gz$" archive(TarGz) { bin "^cross$" as "cross", bin "^cross-util$" as "cross-util" },
     windows[x86_64] "^cross-x86_64-pc-windows-msvc.tar.gz$"  archive(TarGz) { bin "^cross.exe$" as "cross", bin "^cross-util.exe$" as "cross-util.exe" }
@@ -113,9 +119,13 @@ packages {
   }
 
   "gitui": GitHub "extrawurst/gitui" version(TagName) {
-    linux[x86_64]   "^gitui-linux-x86_64.tar.gz$"    archive(TarGz) { bin "^gitui$" as "gitui" },
+    linux[x86_64]   "^gitui-linux-x86_64.tar.gz$"  archive(TarGz) { bin "^gitui$" as "gitui" },
     linux[aarch64]  "^gitui-linux-aarch64.tar.gz$" archive(TarGz) { bin "^gitui$" as "gitui" },
     windows[x86_64] "^gitui-win.tar.gz$"           archive(TarGz) { bin "^gitui.exe$" as "gitui.exe" }
+  }
+
+  "helix": GitHub "helix-editor/helix" version(TagName) {
+    linux[x86_64]   "-x86_64.AppImage$" as "hx"
   }
 
   "jumpy": GitHub "ClementNerma/Jumpy" version(TagName) {
@@ -139,13 +149,13 @@ packages {
   "lsd": GitHub "lsd-rs/lsd" version(TagName) {
     linux[x86_64]   "-x86_64-unknown-linux-musl.tar.gz$" archive(TarGz) { bin "/lsd$" as "lsd" },
     linux[aarch64]  "-aarch64-unknown-linux-gnu.tar.gz$" archive(TarGz) { bin "/lsd$" as "lsd" },
-    windows[x86_64] "-x86_64-pc-windows-msvc.zip$" archive(Zip) { bin "/lsd.exe$" as "lsd.exe" }
+    windows[x86_64] "-x86_64-pc-windows-msvc.zip$"       archive(Zip) { bin "/lsd.exe$" as "lsd.exe" }
   }
 
   "mise": GitHub "jdx/mise" version(TagName) {
     linux[x86_64]   "-linux-x64-musl.tar.gz$"   archive(TarGz) { bin "/mise$" as "mise" },
     linux[aarch64]  "-linux-arm64-musl.tar.gz$" archive(TarGz) { bin "/mise$" as "mise" },
-    windows[x86_64] "-windows-x64.zip$"             archive(Zip)   { bin "/mise.exe$" as "mise.exe" }
+    windows[x86_64] "-windows-x64.zip$"         archive(Zip)   { bin "/mise.exe$" as "mise.exe" }
   }
 
   "moar": GitHub "walles/moar" version(TagName) {
@@ -160,16 +170,17 @@ packages {
   }
 
   "neovim": GitHub "neovim/neovim" version(TagName) {
-    linux[x86_64] "^nvim.appimage$" as "nvim"
+    linux[x86_64]  "^nvim-linux-x86_64.appimage$" as "nvim",
+    linux[aarch64] "^nvim-linux-arm64.appimage$"  as "nvim"
   }
 
-  "pueue" (requires "pueued"): GitHub "Nukesor/pueue" version(TagName) {
+  "pueue" (requires "pueued"): GitHub "Nukesor/pueue" version(TagName) [prelease] {
     linux[x86_64]   "^pueue-x86_64-unknown-linux-musl$"  as "pueue",
     linux[aarch64]  "^pueue-aarch64-unknown-linux-musl$" as "pueue",
     windows[x86_64] "^pueue-x86_64-pc-windows-msvc.exe$" as "pueue.exe"
   }
 
-  "pueued": GitHub "Nukesor/pueue" version(TagName) {
+  "pueued": GitHub "Nukesor/pueue" version(TagName) [prelease] {
     linux[x86_64]   "^pueued-x86_64-unknown-linux-musl$"  as "pueued",
     linux[aarch64]  "^pueued-aarch64-unknown-linux-musl$" as "pueued",
     windows[x86_64] "^pueued-x86_64-pc-windows-msvc.exe$" as "pueued.exe"
@@ -219,6 +230,12 @@ packages {
   "xplr": GitHub "sayanarijit/xplr" version(TagName) {
     linux[x86_64]  "^xplr-linux-musl.tar.gz$"    archive(TarGz) { bin "^xplr$" as "xplr" },
     linux[aarch64] "^xplr-linux-aarch64.tar.gz$" archive(TarGz) { bin "^xplr$" as "xplr.exe" }
+  }
+
+  "watchexec": GitHub "watchexec/watchexec" version(TagName) {
+    linux[aarch64]  "-aarch64-unknown-linux-musl.tar.xz$" archive(TarXz) { bin "/watchexec$" as "watchexec" },
+    linux[x86_64]   "-x86_64-unknown-linux-musl.tar.xz$"  archive(TarXz) { bin "/watchexec$" as "watchexec" },
+    windows[x86_64] "-x86_64-pc-windows-msvc.zip$" archive(Zip) { bin "/watchexec.exe$" as "watchexec" }
   }
 
   "yazi": GitHub "sxyazi/yazi" version(TagName) {
