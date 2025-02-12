@@ -5,7 +5,7 @@ use regex::Regex;
 
 use crate::sources::{
     direct::DirectSource,
-    github::{GitHubVersionExtraction, GithubSource},
+    github::{GitHubVersionExtraction, GithubReleaseSelector, GithubSource},
     pattern::Pattern,
     ArchiveFormat, AssetType, BinaryInArchive,
 };
@@ -158,6 +158,7 @@ pub fn repository() -> impl Parser<Repository> {
             .atomic_err("expected a valid GitHub version extraction model"),
         )
         .then_ignore(char(')').critical_with_no_message())
+        .then(ms.then(just("[prelease]")).or_not())
         .then_ignore(ms)
         .then_ignore(char('{').critical_with_no_message())
         .then(
@@ -167,12 +168,19 @@ pub fn repository() -> impl Parser<Repository> {
                 .map(PlatformDependent::new),
         )
         .then_ignore(char('}').critical_with_no_message())
-        .map(|(((author, repo_name), version), asset)| GithubSource {
-            author,
-            repo_name,
-            version,
-            asset,
-        });
+        .map(
+            |((((author, repo_name), version), prelease), asset)| GithubSource {
+                author,
+                repo_name,
+                version,
+                asset,
+                release_selector: if prelease.is_some() {
+                    GithubReleaseSelector::Latest
+                } else {
+                    GithubReleaseSelector::Stable
+                },
+            },
+        );
 
     let package = string
         .then(
