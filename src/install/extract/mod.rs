@@ -12,6 +12,7 @@ use std::{
 };
 
 use anyhow::{bail, Context, Result};
+use bzip2::read::BzDecoder;
 use colored::Colorize;
 use flate2::read::GzDecoder;
 use indicatif::ProgressBar;
@@ -62,6 +63,11 @@ pub fn extract_asset(
 
                 ArchiveFormat::TarXz => {
                     let mut reader = TarReader::new(XzDecoder::new(file));
+                    extract_archive(reader.iter()?, files, bins_dir, pb.clone())
+                }
+
+                ArchiveFormat::TarBz => {
+                    let mut reader = TarReader::new(BzDecoder::new(file));
                     extract_archive(reader.iter()?, files, bins_dir, pb.clone())
                 }
 

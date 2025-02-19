@@ -68,6 +68,7 @@ pub fn repository() -> impl Parser<Repository> {
     let archive_format = choice::<ArchiveFormat, _>((
         just("archive(TarGz)").to(ArchiveFormat::TarGz),
         just("archive(TarXz)").to(ArchiveFormat::TarXz),
+        just("archive(TarBz)").to(ArchiveFormat::TarBz),
         just("archive(Zip)").to(ArchiveFormat::Zip),
     ))
     .atomic_err("expected a valid archive format");

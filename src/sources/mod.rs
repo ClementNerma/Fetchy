@@ -38,6 +38,7 @@ ast_friendly! {
     pub enum ArchiveFormat {
         TarGz,
         TarXz,
+        TarBz,
         Zip,
     }
 

@@ -1,6 +1,6 @@
 [package]
 name = "fetchy"
-version = "0.14.2"
+version = "0.14.3"
 edition = "2021"
 description = "Quick packages installer"
 license = "Apache-2.0"
@@ -8,6 +8,7 @@ repository = "https://github.com/ClementNerma/Fetchy"
 
 [dependencies]
 anyhow = "1.0.95"
+bzip2 = "0.5.1"
 clap = { version = "4.5.23", features = ["derive"] }
 colored = "2.2.0"
 comfy-table = "7.1.3"
