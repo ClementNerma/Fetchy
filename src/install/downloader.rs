@@ -14,25 +14,19 @@ use tokio::{fs::File, io::AsyncWriteExt, task::JoinSet};
 use crate::{
     repos::ast::PackageManifest,
     sources::AssetInfos,
-    utils::{join_fallible_ordered_set, BYTES_PROGRESS_BAR_STYLE, SPINNER_PROGRESS_BAR_STYLE},
+    utils::{join_fallible, BYTES_PROGRESS_BAR_STYLE, SPINNER_PROGRESS_BAR_STYLE},
 };
 
-pub async fn download_assets_and<
-    S: Clone + Send + 'static,
-    O: Send + 'static,
-    F: Future<Output = Result<O>> + Send,
->(
+use super::extract::extract_asset;
+
+pub async fn download_pkgs_and<F: Future<Output = Result<()>> + Send>(
     pkgs: Vec<(PackageManifest, AssetInfos)>,
-    finalize_state: S,
-    finalize: impl Fn(PackageManifest, AssetInfos, PathBuf, S, ProgressBar) -> F
-        + Clone
-        + Send
-        + 'static,
-) -> Result<(
+    bins_dir: &Path,
+    finalize: impl Fn(PackageManifest, AssetInfos) -> F + Clone + Send + Sync + 'static,
+) -> Result<
     // The temporary directory is returned as its content is deleted when its `Drop`ped
     TempDir,
-    Vec<O>,
-)> {
+> {
     let dl_dir = TempDir::new().context("Failed to create a temporary downloads directory")?;
 
     let multi = MultiProgress::new();
@@ -44,7 +38,7 @@ pub async fn download_assets_and<
         .max()
         .unwrap();
 
-    for (i, (pkg, asset_infos)) in pkgs.into_iter().enumerate() {
+    for (pkg, asset_infos) in pkgs {
         let pb = multi.add(
             ProgressBar::new_spinner()
                 .with_style(SPINNER_PROGRESS_BAR_STYLE.clone())
@@ -56,8 +50,8 @@ pub async fn download_assets_and<
 
         let dl_dir = dl_dir.path().to_owned();
 
+        let bins_dir = bins_dir.to_owned();
         let finalize = finalize.clone();
-        let finalize_state = finalize_state.clone();
 
         tasks.spawn(async move {
             let asset_path = download_asset(&pkg, &asset_infos, &dl_dir, pb.clone())
@@ -69,31 +63,39 @@ pub async fn download_assets_and<
                     )
                 })?;
 
+            let pb_bis = pb.clone();
+            let asset_typ = asset_infos.typ.clone();
             let pkg_name = pkg.name.clone();
 
-            let output = finalize(pkg, asset_infos, asset_path, finalize_state, pb.clone())
-                .await
-                .with_context(|| {
+            tokio::task::spawn_blocking(move || {
+                extract_asset(&asset_path, &asset_typ, &bins_dir, pb_bis).with_context(|| {
                     format!(
-                        "Failed to downloaded asset for package {}",
+                        "Failed to extract downloaded asset for package {}",
                         pkg_name.bright_yellow()
                     )
-                })?;
+                })
+            })
+            .await
+            .context("Failed to wait on Tokio task")??;
 
-            pb.finish_and_clear();
+            pb.set_message("finalizing...");
 
-            Ok((i, output))
+            let pkg_name = pkg.name.clone();
+
+            finalize(pkg, asset_infos)
+                .await
+                .with_context(|| format!("Failed on package {}", pkg_name.bright_yellow()))?;
+
+            Ok(())
         });
     }
 
-    let joined = join_fallible_ordered_set(tasks)
-        .await
-        .map(|downloaded| (dl_dir, downloaded));
+    join_fallible(tasks).await?;
 
     // Ignore errors from failing to clear multibar
     let _ = multi.clear();
 
-    joined
+    Ok(dl_dir)
 }
 
 async fn download_asset(

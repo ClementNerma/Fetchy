@@ -55,6 +55,24 @@ pub async fn confirm() -> Result<bool> {
     .inspect(|_| println!())
 }
 
+pub async fn join_fallible(mut tasks: JoinSet<Result<()>>) -> Result<()> {
+    while let Some(result) = tasks.join_next().await {
+        if let Err(err) = result.context("Failed to join Tokio task").flatten() {
+            // If any of the tasks fails, we abort all the others
+            tasks.abort_all();
+
+            // Then we wait for all others to complete
+            // Note that we can't use `.join_all()` as it would panic because
+            // of the task being aborted
+            while tasks.join_next().await.is_some() {}
+
+            return Err(err);
+        }
+    }
+
+    Ok(())
+}
+
 pub async fn join_fallible_set<T: 'static>(mut tasks: JoinSet<Result<T>>) -> Result<Vec<T>> {
     let mut results = Vec::with_capacity(tasks.len());
 

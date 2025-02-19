@@ -1,13 +1,11 @@
 use std::{
     collections::{hash_map::Entry, HashMap},
-    path::PathBuf,
     sync::Arc,
     time::Instant,
 };
 
 use anyhow::{bail, Context, Result};
 use colored::Colorize;
-use indicatif::ProgressBar;
 use jiff::Zoned;
 use log::info;
 use tokio::sync::RwLock;
@@ -16,7 +14,7 @@ use crate::{
     db::{data::InstalledPackage, Db},
     install::{
         display::display_install_phases,
-        downloader::download_assets_and,
+        downloader::download_pkgs_and,
         phases::{InstallPhases, PackagesToInstall},
     },
     repos::ast::PackageManifest,
@@ -25,10 +23,7 @@ use crate::{
     utils::confirm,
 };
 
-use super::{
-    extract::extract_asset,
-    phases::{compute_install_phases, InstalledPackagesHandling},
-};
+use super::phases::{compute_install_phases, InstalledPackagesHandling};
 
 pub async fn install_pkgs(
     pkgs: Vec<ResolvedPkg<'_, '_>>,
@@ -159,13 +154,19 @@ pub async fn install_pkgs(
         .map(|(pkg, asset_infos)| (pkg.manifest.clone(), (*asset_infos).clone()))
         .collect();
 
-    let state = ExtractionState {
-        pkg_infos: Arc::new(pkg_infos),
-        bins_dir: db.bin_dir().to_owned(),
-        db: Arc::new(RwLock::new(db)),
-    };
+    let bins_dir = db.bin_dir().to_owned();
+    let db = Arc::new(RwLock::new(db));
+    let pkg_infos = Arc::new(pkg_infos);
 
-    let (tmp_dir, _) = download_assets_and(to_install, state, extract_and_install_binaries).await?;
+    let tmp_dir = download_pkgs_and(to_install, &bins_dir, move |manifest, asset_infos| {
+        update_db(
+            pkg_infos.get(&manifest.name).unwrap().clone(),
+            manifest,
+            asset_infos,
+            Arc::clone(&db),
+        )
+    })
+    .await?;
 
     info!(
         "Successfully installed {} package(s) in {} second(s)!",
@@ -190,46 +191,25 @@ pub async fn install_pkgs(
 }
 
 #[derive(Clone)]
-struct ExtractionState {
-    pkg_infos: Arc<HashMap<String, ExtractionPkgInfo>>,
-    bins_dir: PathBuf,
-    db: Arc<RwLock<Db>>,
-}
-
-#[derive(Clone)]
 struct ExtractionPkgInfo {
     repo_name: String,
     is_dep: bool,
     binaries: Vec<String>,
 }
 
-async fn extract_and_install_binaries(
+async fn update_db(
+    pkg_infos: ExtractionPkgInfo,
     manifest: PackageManifest,
     asset_infos: AssetInfos,
-    asset_path: PathBuf,
-    state: ExtractionState,
-    pb: ProgressBar,
+    db: Arc<RwLock<Db>>,
 ) -> Result<()> {
-    let pb_bis = pb.clone();
-
-    tokio::task::spawn_blocking(move || {
-        extract_asset(&asset_path, &asset_infos.typ, &state.bins_dir, pb)
-    })
-    .await
-    .context("Failed to wait on Tokio task")?
-    .context("Failed to extract downloaded asset")?;
-
     let ExtractionPkgInfo {
         repo_name,
         is_dep,
         binaries,
-    } = state.pkg_infos.get(&manifest.name).unwrap().clone();
+    } = pkg_infos;
 
-    pb_bis.set_message("updating database...");
-
-    state
-        .db
-        .write()
+    db.write()
         .await
         .update(|db| {
             let installed_as_dep = db
@@ -241,11 +221,11 @@ async fn extract_and_install_binaries(
             db.installed.insert(
                 manifest.name.clone(),
                 InstalledPackage {
-                    manifest,
-                    repo_name,
+                    manifest: manifest.clone(),
+                    repo_name: repo_name.clone(),
                     version: asset_infos.version,
                     installed_as_dep,
-                    binaries,
+                    binaries: binaries.clone(),
                     at: Zoned::now(),
                 },
             );
