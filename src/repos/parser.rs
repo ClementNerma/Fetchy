@@ -43,22 +43,22 @@ pub fn repository() -> impl Parser<Repository> {
     .atomic_err("expected a valid CPU architecture");
 
     let platform = system
-        .then_ignore(char('[').critical_with_no_message())
+        .then_ignore(char('[').critical_auto_msg())
         .then(cpu_arch)
-        .then_ignore(char(']').critical_with_no_message());
+        .then_ignore(char(']').critical_auto_msg());
 
-    let pattern = string.and_then_or_str_err(|string| {
+    let pattern = string.and_then_or_str(|string| {
         Regex::new(&string)
             .map(Pattern)
             .map_err(|err| format!("Invalid regex {string:?} provided: {err}"))
     });
 
     let single_file_extraction = just("bin")
-        .ignore_then(s.critical_with_no_message())
+        .ignore_then(s.critical_auto_msg())
         .ignore_then(pattern.critical("expected a pattern"))
         .then_ignore(s)
         .then_ignore(just("as"))
-        .then_ignore(s.critical_with_no_message())
+        .then_ignore(s.critical_auto_msg())
         .then(string.critical("expected a name for the binary file"))
         .map(|(path_matcher, copy_as)| BinaryInArchive {
             path_matcher,
@@ -75,27 +75,27 @@ pub fn repository() -> impl Parser<Repository> {
 
     let asset_content = choice::<AssetType, _>((
         just("as")
-            .ignore_then(s.critical_with_no_message())
+            .ignore_then(s.critical_auto_msg())
             .ignore_then(string.critical("expected a binary filename"))
             .map(|copy_as| AssetType::Binary { copy_as }),
         archive_format
             .then_ignore(ms)
-            .then_ignore(char('{').critical_with_no_message())
+            .then_ignore(char('{').critical_auto_msg())
             .then(
                 single_file_extraction
                     .padded_by(msnl)
-                    .separated_by(char(','))
+                    .separated_by_into_vec(char(','))
                     .at_least(1)
                     .critical("expected at least one file extraction for the archive"),
             )
-            .then_ignore(char('}').critical_with_no_message())
+            .then_ignore(char('}').critical_auto_msg())
             .map(|(format, files)| AssetType::Archive { format, files }),
     ));
 
     let direct_asset = platform
-        .then_ignore(s.critical_with_no_message())
+        .then_ignore(s.critical_auto_msg())
         .then(string.critical("expected an URL"))
-        .then_ignore(s.critical_with_no_message())
+        .then_ignore(s.critical_auto_msg())
         .then(asset_content.critical("expected a file extraction"))
         .map::<PlatformDependentEntry<(String, AssetType)>, _>(
             |(((system, cpu_arch), asset_pattern), file_extraction)| {
@@ -104,21 +104,21 @@ pub fn repository() -> impl Parser<Repository> {
         );
 
     let direct_source_params = just("version")
-        .critical_with_no_message()
-        .ignore_then(char('(').critical_with_no_message())
+        .critical_auto_msg()
+        .ignore_then(char('(').critical_auto_msg())
         .ignore_then(string.critical("expected a hardcoded version string"))
-        .then_ignore(char(')').critical_with_no_message())
-        .then_ignore(s.critical_with_no_message())
-        .then_ignore(char('{').critical_with_no_message())
+        .then_ignore(char(')').critical_auto_msg())
+        .then_ignore(s.critical_auto_msg())
+        .then_ignore(char('{').critical_auto_msg())
         .then(
             direct_asset
                 .padded_by(msnl)
-                .separated_by(char(','))
+                .separated_by_into_vec(char(','))
                 .at_least(1)
                 .critical("expected at least 1 downloadable asset")
                 .map(PlatformDependent::new),
         )
-        .then_ignore(char('}').critical_with_no_message())
+        .then_ignore(char('}').critical_auto_msg())
         .map(|(hardcoded_version, urls)| DirectSource {
             urls,
             hardcoded_version,
@@ -128,7 +128,7 @@ pub fn repository() -> impl Parser<Repository> {
         .critical("expected a binary platform")
         .then_ignore(ms)
         .then(pattern.critical("expected an asset pattern"))
-        .then_ignore(s.critical_with_no_message())
+        .then_ignore(s.critical_auto_msg())
         .then(asset_content.critical("expected a file extraction"))
         .map::<PlatformDependentEntry<(Pattern, AssetType)>, _>(
             |(((system, cpu_arch), asset_pattern), file_extraction)| {
@@ -138,7 +138,7 @@ pub fn repository() -> impl Parser<Repository> {
 
     let github_source_params = string
         .critical("expected a repository name")
-        .and_then_or_str_err(|string| {
+        .and_then_or_str(|string| {
             let mut split = string.split('/');
             let user = split.next().unwrap();
             let repo = split.next().ok_or("Missing repo name after user")?;
@@ -149,8 +149,8 @@ pub fn repository() -> impl Parser<Repository> {
                 Err("Too many slash separators (should be 'user/repo')".to_owned())
             }
         })
-        .then_ignore(s.critical_with_no_message())
-        .then_ignore(just("version(").critical_with_no_message())
+        .then_ignore(s.critical_auto_msg())
+        .then_ignore(just("version(").critical_auto_msg())
         .then(
             choice::<GitHubVersionExtraction, _>((
                 just("TagName").to(GitHubVersionExtraction::TagName),
@@ -158,17 +158,17 @@ pub fn repository() -> impl Parser<Repository> {
             ))
             .atomic_err("expected a valid GitHub version extraction model"),
         )
-        .then_ignore(char(')').critical_with_no_message())
+        .then_ignore(char(')').critical_auto_msg())
         .then(ms.then(just("[prelease]")).or_not())
         .then_ignore(ms)
-        .then_ignore(char('{').critical_with_no_message())
+        .then_ignore(char('{').critical_auto_msg())
         .then(
             github_asset
                 .padded_by(msnl)
-                .separated_by(char(','))
+                .separated_by_into_vec(char(','))
                 .map(PlatformDependent::new),
         )
-        .then_ignore(char('}').critical_with_no_message())
+        .then_ignore(char('}').critical_auto_msg())
         .map(
             |((((author, repo_name), version), prelease), asset)| GithubSource {
                 author,
@@ -186,28 +186,28 @@ pub fn repository() -> impl Parser<Repository> {
     let package = string
         .then(
             s.ignore_then(just("(requires"))
-                .ignore_then(s.critical_with_no_message())
+                .ignore_then(s.critical_auto_msg())
                 .ignore_then(
                     string
-                        .separated_by(char(',').padded_by(ms))
+                        .separated_by_into_vec(char(',').padded_by(ms))
                         .critical("expected a list of dependencies"),
                 )
-                .then_ignore(char(')').critical_with_no_message())
+                .then_ignore(char(')').critical_auto_msg())
                 .or_not(),
         )
-        .then_ignore(char(':').critical_with_no_message())
+        .then_ignore(char(':').critical_auto_msg())
         .then_ignore(msnl)
         .then(
             choice::<DownloadSource, _>((
                 just("Direct")
-                    .ignore_then(s.critical_with_no_message())
+                    .ignore_then(s.critical_auto_msg())
                     .ignore_then(
                         direct_source_params
                             .critical("expected to find valid direct source parameters"),
                     )
                     .map(DownloadSource::Direct),
                 just("GitHub")
-                    .ignore_then(s.critical_with_no_message())
+                    .ignore_then(s.critical_auto_msg())
                     .ignore_then(
                         github_source_params
                             .critical("expected to find valid GitHub source parameters"),
@@ -223,32 +223,32 @@ pub fn repository() -> impl Parser<Repository> {
         });
 
     let name = just("name")
-        .ignore_then(s.critical_with_no_message())
+        .ignore_then(s.critical_auto_msg())
         .ignore_then(string);
 
     let description = just("description")
-        .ignore_then(s.critical_with_no_message())
+        .ignore_then(s.critical_auto_msg())
         .ignore_then(string);
 
     let newlines = newline().repeated().at_least(1);
 
     let packages = just("packages")
         .ignore_then(ms)
-        .ignore_then(char('{').critical_with_no_message())
+        .ignore_then(char('{').critical_auto_msg())
         .ignore_then(
             package
                 .padded_by(msnl)
-                .repeated_vec()
+                .repeated_into_vec()
                 .at_least(1)
                 .critical("expected at least 1 package in repository"),
         )
-        .then_ignore(char('}').critical_with_no_message());
+        .then_ignore(char('}').critical_auto_msg());
 
     let repository = name
         .critical("expected a repository name")
-        .then_ignore(newlines.critical_with_no_message())
+        .then_ignore(newlines.critical_auto_msg())
         .then(description.critical("expected a repository description"))
-        .then_ignore(newlines.critical_with_no_message())
+        .then_ignore(newlines.critical_auto_msg())
         .then(packages.critical("expected a list of packages"))
         .map(|((name, description), packages)| Repository {
             name,
