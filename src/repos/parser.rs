@@ -65,13 +65,18 @@ pub fn repository() -> impl Parser<Repository> {
             copy_as,
         });
 
-    let archive_format = choice::<ArchiveFormat, _>((
-        just("archive(TarGz)").to(ArchiveFormat::TarGz),
-        just("archive(TarXz)").to(ArchiveFormat::TarXz),
-        just("archive(TarBz)").to(ArchiveFormat::TarBz),
-        just("archive(Zip)").to(ArchiveFormat::Zip),
-    ))
-    .atomic_err("expected a valid archive format");
+    let archive_format = just("archive(")
+        .critical_auto_msg()
+        .ignore_then(
+            choice::<ArchiveFormat, _>((
+                just("TarGz").to(ArchiveFormat::TarGz),
+                just("TarXz").to(ArchiveFormat::TarXz),
+                just("TarBz").to(ArchiveFormat::TarBz),
+                just("Zip").to(ArchiveFormat::Zip),
+            ))
+            .atomic_err("expected a valid archive format"),
+        )
+        .then_ignore(char(')').critical_auto_msg());
 
     let asset_content = choice::<AssetType, _>((
         just("as")
