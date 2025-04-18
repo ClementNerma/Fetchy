@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use parsy::{char, choice, filter, just, newline, whitespaces, Parser};
+use parsy::{Parser, char, choice, filter, just, newline, whitespaces};
 use regex::Regex;
 
 use crate::sources::{
+    ArchiveFormat, AssetType, BinaryInArchive,
     direct::DirectSource,
     github::{GitHubVersionExtraction, GithubReleaseSelector, GithubSource},
     pattern::Pattern,
-    ArchiveFormat, AssetType, BinaryInArchive,
 };
 
 use super::{
@@ -47,7 +47,7 @@ pub fn repository() -> impl Parser<Repository> {
         .then(cpu_arch)
         .then_ignore(char(']').critical_auto_msg());
 
-    let pattern = string.and_then_or_str(|string| {
+    let pattern = string.and_then_or_critical(|string| {
         Regex::new(&string)
             .map(Pattern)
             .map_err(|err| format!("Invalid regex {string:?} provided: {err}"))
@@ -143,7 +143,7 @@ pub fn repository() -> impl Parser<Repository> {
 
     let github_source_params = string
         .critical("expected a repository name")
-        .and_then_or_str(|string| {
+        .and_then_or_critical(|string| {
             let mut split = string.split('/');
             let user = split.next().unwrap();
             let repo = split.next().ok_or("Missing repo name after user")?;
