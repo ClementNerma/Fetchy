@@ -11,10 +11,10 @@ use std::{
     process::ExitCode,
 };
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::Parser as _;
 use colored::Colorize;
-use comfy_table::{presets, Attribute, Cell, Color, ContentArrangement, Table};
+use comfy_table::{Attribute, Cell, Color, ContentArrangement, Table, presets};
 use log::{error, info, warn};
 use rapidfuzz::distance::jaro_winkler::BatchComparator;
 use tokio::fs;
@@ -25,9 +25,9 @@ use openssl_sys as _;
 
 use self::{
     args::{Action, Args},
-    db::{data::SourcedRepository, Db},
-    fetch_repos::{fetch_repositories, fetch_repository, RepositoryLocation, RepositorySource},
-    install::{display_pkg_phase, install_pkgs, InstalledPackagesHandling},
+    db::{Db, data::SourcedRepository},
+    fetch_repos::{RepositoryLocation, RepositorySource, fetch_repositories, fetch_repository},
+    install::{InstallOpts, InstalledPackagesHandling, display_pkg_phase, install_pkgs},
     logger::Logger,
     repos::ast::PackageManifest,
     resolver::{
@@ -93,6 +93,7 @@ async fn inner(action: Action) -> Result<()> {
             names,
             check_updates,
             discreet,
+            yes,
         } => {
             let pkgs = resolve_pkgs_by_name_with_deps(names.as_slice(), &repos)?;
 
@@ -104,12 +105,15 @@ async fn inner(action: Action) -> Result<()> {
                     InstalledPackagesHandling::Ignore
                 },
                 db,
-                discreet,
+                InstallOpts {
+                    discreet,
+                    no_confirm: yes,
+                },
             )
             .await?;
         }
 
-        Action::Reinstall { names } => {
+        Action::Reinstall { names, yes } => {
             let pkgs = resolve_installed_pkgs_by_name(&names, &db.installed, &repos)?;
 
             let pkgs = pkgs
@@ -118,10 +122,19 @@ async fn inner(action: Action) -> Result<()> {
                 .map(refresh_pkg)
                 .collect::<Result<Vec<_>, _>>()?;
 
-            install_pkgs(pkgs, InstalledPackagesHandling::Reinstall, db, false).await?;
+            install_pkgs(
+                pkgs,
+                InstalledPackagesHandling::Reinstall,
+                db,
+                InstallOpts {
+                    discreet: false,
+                    no_confirm: yes,
+                },
+            )
+            .await?;
         }
 
-        Action::Update { names } => {
+        Action::Update { names, yes } => {
             let pkgs = if !names.is_empty() {
                 resolve_installed_pkgs_by_name(&names, &db.installed, &repos)?
             } else {
@@ -134,7 +147,16 @@ async fn inner(action: Action) -> Result<()> {
                 .map(refresh_pkg)
                 .collect::<Result<Vec<_>, _>>()?;
 
-            install_pkgs(pkgs, InstalledPackagesHandling::Update, db, false).await?;
+            install_pkgs(
+                pkgs,
+                InstalledPackagesHandling::Update,
+                db,
+                InstallOpts {
+                    discreet: false,
+                    no_confirm: yes,
+                },
+            )
+            .await?;
         }
 
         Action::Uninstall { names, deps } => {
@@ -337,7 +359,16 @@ async fn inner(action: Action) -> Result<()> {
                 .map(|(resolved, _)| refresh_pkg(*resolved))
                 .collect::<Result<Vec<_>, _>>()?;
 
-            install_pkgs(broken, InstalledPackagesHandling::Reinstall, db, false).await?;
+            install_pkgs(
+                broken,
+                InstalledPackagesHandling::Reinstall,
+                db,
+                InstallOpts {
+                    discreet: false,
+                    no_confirm: false,
+                },
+            )
+            .await?;
         }
 
         Action::Search {

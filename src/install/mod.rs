@@ -5,6 +5,8 @@ mod fetch_infos;
 mod installer;
 mod phases;
 
-pub use display::display_pkg_phase;
-pub use installer::install_pkgs;
-pub use phases::InstalledPackagesHandling;
+pub use self::{
+    display::display_pkg_phase,
+    installer::{InstallOpts, install_pkgs},
+    phases::InstalledPackagesHandling,
+};

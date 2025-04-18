@@ -27,18 +27,27 @@ pub enum Action {
 
         #[clap(short, long, help = "Display less informations")]
         discreet: bool,
+
+        #[clap(short, long, help = "Don't ask for confirmation")]
+        yes: bool,
     },
 
     #[clap(about = "Re-install some already-installed package(s)")]
     Reinstall {
         #[clap(help = "Name of the package(s) to reinstall", required = true)]
         names: Vec<String>,
+
+        #[clap(short, long, help = "Don't ask for confirmation")]
+        yes: bool,
     },
 
     #[clap(about = "Update package(s)")]
     Update {
         #[clap(help = "Only update some package(s)")]
         names: Vec<String>,
+
+        #[clap(short, long, help = "Don't ask for confirmation")]
+        yes: bool,
     },
 
     #[clap(about = "Uninstall package(s)")]

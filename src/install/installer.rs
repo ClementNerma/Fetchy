@@ -1,17 +1,17 @@
 use std::{
-    collections::{hash_map::Entry, HashMap},
+    collections::{HashMap, hash_map::Entry},
     sync::Arc,
     time::Instant,
 };
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use colored::Colorize;
 use jiff::Zoned;
 use log::info;
 use tokio::sync::RwLock;
 
 use crate::{
-    db::{data::InstalledPackage, Db},
+    db::{Db, data::InstalledPackage},
     install::{
         display::display_install_phases,
         downloader::download_pkgs_and,
@@ -23,13 +23,25 @@ use crate::{
     utils::confirm,
 };
 
-use super::phases::{compute_install_phases, InstalledPackagesHandling};
+use super::phases::{InstalledPackagesHandling, compute_install_phases};
+
+/// Configure package installation process
+pub struct InstallOpts {
+    /// Show less informations
+    pub discreet: bool,
+
+    /// Perform installation without asking for user confirmation
+    pub no_confirm: bool,
+}
 
 pub async fn install_pkgs(
     pkgs: Vec<ResolvedPkg<'_, '_>>,
     installed_pkgs_handling: InstalledPackagesHandling,
     db: Db,
-    discreet: bool,
+    InstallOpts {
+        discreet,
+        no_confirm,
+    }: InstallOpts,
 ) -> Result<()> {
     let start = Instant::now();
 
@@ -69,11 +81,12 @@ pub async fn install_pkgs(
         return Ok(());
     }
 
-    if to_install.iter().any(|(pkg, _)| pkg.is_dep)
+    if (to_install.iter().any(|(pkg, _)| pkg.is_dep)
         || matches!(
             installed_pkgs_handling,
             InstalledPackagesHandling::Update | InstalledPackagesHandling::Reinstall
-        )
+        ))
+        && !no_confirm
     {
         info!(
             "{}",
