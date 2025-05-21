@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use parsy::{Parser, char, choice, filter, just, newline, whitespaces};
+use parsy::{
+    Parser,
+    helpers::{char, choice, filter, just, newline, whitespaces},
+};
 use regex::Regex;
 
 use crate::sources::{
@@ -50,7 +53,7 @@ pub fn repository() -> impl Parser<Repository> {
     let pattern = string.and_then_or_critical(|string| {
         Regex::new(&string)
             .map(Pattern)
-            .map_err(|err| format!("Invalid regex {string:?} provided: {err}"))
+            .map_err(|err| format!("Invalid regex {string:?} provided: {err}").into())
     });
 
     let single_file_extraction = just("bin")
@@ -151,7 +154,7 @@ pub fn repository() -> impl Parser<Repository> {
             if split.next().is_none() {
                 Ok((user.to_owned(), repo.to_owned()))
             } else {
-                Err("Too many slash separators (should be 'user/repo')".to_owned())
+                Err("Too many slash separators (should be 'user/repo')".into())
             }
         })
         .then_ignore(s.critical_auto_msg())
@@ -269,6 +272,6 @@ pub fn repository() -> impl Parser<Repository> {
 
 // Usage: .debug(simple_debug) after any parser
 #[allow(dead_code)]
-fn simple_debug<T: std::fmt::Debug>(d: parsy::chainings::DebugType<'_, '_, T>) {
+fn simple_debug<T: std::fmt::Debug>(d: parsy::tails::DebugType<'_, '_, T>) {
     println!("{d:#?}");
 }
