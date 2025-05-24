@@ -219,7 +219,7 @@ async fn inner(action: Action) -> Result<()> {
             };
 
             warn!(
-                "Do you want to want to uninstall {} package(s)?\n",
+                "Do you want to want to uninstall {} package(s)?",
                 to_uninstall.len().to_string().bright_red()
             );
 
@@ -239,22 +239,21 @@ async fn inner(action: Action) -> Result<()> {
                 })
                 .collect::<Vec<_>>();
 
-            if let Some((bin_path, bin_name, installed)) = bin_paths
-                .iter()
-                .find(|(bin_path, _, _)| !bin_path.is_file())
-            {
-                bail!(
-                    "Binary {} from package {} is missing (at path: {})",
-                    bin_name.bright_green(),
-                    installed.manifest.name.bright_yellow(),
-                    bin_path.to_string_lossy().bright_magenta()
-                );
-            }
-
             for (bin_path, bin_name, installed) in &bin_paths {
+                if !bin_path.exists() {
+                    warn!(
+                        "Binary {} from package {} is missing (at path: {})",
+                        bin_name.bright_green(),
+                        installed.manifest.name.bright_yellow(),
+                        bin_path.to_string_lossy().bright_magenta()
+                    );
+
+                    continue;
+                }
+
                 fs::remove_file(&bin_path).await.with_context(|| {
                     format!(
-                        "Faile dto remove binary {} from package {} is missing (at path: {})",
+                        "Failed to remove binary {} from package {} is missing (at path: {})",
                         bin_name.bright_green(),
                         installed.manifest.name.bright_yellow(),
                         bin_path.to_string_lossy().bright_magenta()
