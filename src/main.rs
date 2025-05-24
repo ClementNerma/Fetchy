@@ -261,21 +261,18 @@ async fn inner(action: Action) -> Result<()> {
                 })?;
             }
 
-            let to_uninstall = bin_paths
-                .into_iter()
-                .map(|(_, _, installed)| installed.manifest.name.clone())
-                .collect::<Vec<_>>();
+            let count = names.len();
 
-            db.update(|db| {
-                for pkg_name in &to_uninstall {
-                    assert!(db.installed.remove(pkg_name).is_some());
+            db.update(move |db| {
+                for pkg_name in names {
+                    assert!(db.installed.remove(&pkg_name).is_some());
                 }
             })
             .await?;
 
             info!(
                 "Successfully removed {} packages!",
-                to_uninstall.len().to_string().bright_yellow()
+                count.to_string().bright_yellow()
             );
         }
 
