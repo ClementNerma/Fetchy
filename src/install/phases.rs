@@ -1,8 +1,8 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use colored::Colorize;
 
 use crate::{
-    db::{data::InstalledPackage, Db},
+    db::{Db, data::InstalledPackage},
     resolver::ResolvedPkg,
     sources::AssetInfos,
 };
@@ -45,15 +45,16 @@ pub async fn compute_install_phases<'a, 'b, 'c>(
     db: &'c Db,
 ) -> Result<InstallPhases<'a, 'b, 'c>> {
     for pkg in &pkgs {
-        if let Some(installed) = db.installed.get(&pkg.manifest.name) {
-            if installed.repo_name != pkg.repository.name {
-                bail!("Trying to install package {} from repository {}{}, but another package of the same name from repository {} is already installed",
-                    pkg.manifest.name.bright_yellow(),
-                    pkg.repository.name.bright_blue(),
-                    if pkg.is_dep { " as a dependency" } else { "" },
-                    installed.repo_name.bright_blue()
-                );
-            }
+        if let Some(installed) = db.installed.get(&pkg.manifest.name)
+            && installed.repo_name != pkg.repository.name
+        {
+            bail!(
+                "Trying to install package {} from repository {}{}, but another package of the same name from repository {} is already installed",
+                pkg.manifest.name.bright_yellow(),
+                pkg.repository.name.bright_blue(),
+                if pkg.is_dep { " as a dependency" } else { "" },
+                installed.repo_name.bright_blue()
+            );
         }
     }
 

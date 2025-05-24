@@ -1,6 +1,6 @@
-use std::collections::{btree_map::Entry, BTreeMap, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque, btree_map::Entry};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use colored::Colorize;
 
 use crate::{
@@ -107,16 +107,15 @@ pub fn resolve_pkgs_with_deps<
                 for dep_name in &resolved.manifest.depends_on {
                     if let Some(existing_pkg) =
                         pkgs.iter().find(|pkg| pkg.manifest.name == *dep_name)
+                        && existing_pkg.repository.name != repository.name
                     {
-                        if existing_pkg.repository.name != repository.name {
-                            bail!(
-                                    "Requested package {} from repository {} clashes with package {} which has a dependency of the same name but from repository {}",
-                                    dep_name.bright_yellow(),
-                                    existing_pkg.repository.name.bright_yellow(),
-                                    manifest.name.bright_yellow(),
-                                    repository.name.bright_blue()
-                                );
-                        }
+                        bail!(
+                            "Requested package {} from repository {} clashes with package {} which has a dependency of the same name but from repository {}",
+                            dep_name.bright_yellow(),
+                            existing_pkg.repository.name.bright_yellow(),
+                            manifest.name.bright_yellow(),
+                            repository.name.bright_blue()
+                        );
                     }
 
                     let dep_manifest = repository.packages
