@@ -1,17 +1,17 @@
 use std::{env, sync::LazyLock};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use log::debug;
 use regex::Regex;
 use reqwest::{
-    header::{self, HeaderMap, HeaderName, HeaderValue},
     Client, StatusCode,
+    header::{self, HeaderMap, HeaderName, HeaderValue},
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{repos::arch::PlatformDependent, utils::join_iter, validator::validate_asset_type};
 
-use super::{pattern::Pattern, AssetInfos, AssetSource, AssetType};
+use super::{AssetInfos, AssetSource, AssetType, pattern::Pattern};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GithubSource {

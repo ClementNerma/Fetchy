@@ -2,8 +2,8 @@ use std::{collections::HashMap, fmt, marker::PhantomData, ops::Deref};
 
 use anyhow::{Context, Result};
 use serde::{
-    de::{SeqAccess, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
+    de::{SeqAccess, Visitor},
 };
 
 macro_rules! supported_platforms {

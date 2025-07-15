@@ -14,7 +14,7 @@ use tokio::{fs::File, io::AsyncWriteExt, task::JoinSet};
 use crate::{
     repos::ast::PackageManifest,
     sources::AssetInfos,
-    utils::{join_fallible, BYTES_PROGRESS_BAR_STYLE, SPINNER_PROGRESS_BAR_STYLE},
+    utils::{BYTES_PROGRESS_BAR_STYLE, SPINNER_PROGRESS_BAR_STYLE, join_fallible},
 };
 
 use super::extract::extract_asset;

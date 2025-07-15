@@ -1,5 +1,5 @@
 use colored::Colorize;
-use comfy_table::{presets, Cell, Color, ContentArrangement, Table};
+use comfy_table::{Cell, Color, ContentArrangement, Table, presets};
 use log::info;
 
 use crate::{
@@ -9,7 +9,7 @@ use crate::{
     sources::AssetInfos,
 };
 
-use super::{phases::InstallPhases, InstalledPackagesHandling};
+use super::{InstalledPackagesHandling, phases::InstallPhases};
 
 /// Display install phases (packages/dependencies that are going to be installed, updated, etc.)
 pub(super) fn display_install_phases(

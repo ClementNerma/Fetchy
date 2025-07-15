@@ -11,7 +11,7 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use bzip2::read::BzDecoder;
 use colored::Colorize;
 use flate2::read::GzDecoder;
@@ -126,9 +126,13 @@ fn extract_archive(
                     .as_ref()
                     .is_some_and(|other_path_in_archive| *other_path_in_archive == path_in_archive)
             }) {
-                bail!("File at path '{}' in archive was matched by two different regular expressions:\n\n* {}\n* {}", 
-                path_in_archive.bright_yellow(),
-                    files[clashing_bin_idx].path_matcher.to_string().bright_blue(),
+                bail!(
+                    "File at path '{}' in archive was matched by two different regular expressions:\n\n* {}\n* {}",
+                    path_in_archive.bright_yellow(),
+                    files[clashing_bin_idx]
+                        .path_matcher
+                        .to_string()
+                        .bright_blue(),
                     path_matcher.to_string().bright_blue(),
                 );
             }

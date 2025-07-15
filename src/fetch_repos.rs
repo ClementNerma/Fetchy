@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use colored::Colorize;
 use parsy::{ErrorReport, Parser};
 use serde::{Deserialize, Serialize};
@@ -8,7 +8,7 @@ use tokio::{fs, task::JoinSet};
 
 use crate::{
     repos::{ast::Repository, parser::repository},
-    utils::{join_fallible_ordered_set, join_iter, progress_bar, ITEMS_PROGRESS_BAR_STYLE},
+    utils::{ITEMS_PROGRESS_BAR_STYLE, join_fallible_ordered_set, join_iter, progress_bar},
     validator::validate_repository,
 };
 

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use colored::Colorize;
-use reqwest::{header::HeaderMap, Url};
+use reqwest::{Url, header::HeaderMap};
 use serde::{Deserialize, Serialize};
 
 use crate::{repos::arch::PlatformDependent, validator::validate_asset_type};

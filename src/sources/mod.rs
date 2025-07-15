@@ -1,6 +1,6 @@
 use anyhow::Result;
 use reqwest::header::{HeaderMap, HeaderValue};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 use crate::ast_friendly;
 

@@ -6,7 +6,7 @@ use regex::Regex;
 use crate::{
     repos::ast::{DownloadSource, PackageManifest, Repository},
     sources::{
-        direct::DirectSource, github::GithubSource, AssetSource, AssetType, BinaryInArchive,
+        AssetSource, AssetType, BinaryInArchive, direct::DirectSource, github::GithubSource,
     },
 };
 
@@ -121,11 +121,9 @@ fn validate_name<'a, T: Display>(
     if NAME_REGEX.is_match(name) {
         Ok(())
     } else {
-        Err(
-            format!(
-                "{typ} name {} is invalid (name should only contain lowercase and uppercase letters, digits, underscores and dashes)",
-                colorize(name)
-            )
-        )
+        Err(format!(
+            "{typ} name {} is invalid (name should only contain lowercase and uppercase letters, digits, underscores and dashes)",
+            colorize(name)
+        ))
     }
 }

@@ -6,7 +6,7 @@ use crate::{
     repos::ast::{DownloadSource, PackageManifest},
     resolver::ResolvedPkg,
     sources::{AssetInfos, AssetSource},
-    utils::{join_fallible_ordered_set, progress_bar, ITEMS_PROGRESS_BAR_STYLE},
+    utils::{ITEMS_PROGRESS_BAR_STYLE, join_fallible_ordered_set, progress_bar},
 };
 
 pub async fn fetch_pkgs_infos(
