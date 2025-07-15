@@ -22,16 +22,24 @@ pub struct GithubSource {
     pub version: GitHubVersionExtraction,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GithubReleaseSelector {
+    pub filter_title: Option<Pattern>,
+
+    #[serde(rename = "type")]
+    pub typ: GithubReleaseType,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+pub enum GithubReleaseType {
+    Latest,
+    Stable,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub enum GitHubVersionExtraction {
     TagName,
     ReleaseTitle,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
-pub enum GithubReleaseSelector {
-    Latest,
-    Stable,
 }
 
 static NAME_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new("^[A-Za-z0-9_.-]+$").unwrap());
@@ -101,7 +109,7 @@ impl AssetSource for GithubSource {
             );
         }
 
-        let release = fetch_latest_release(author, repo_name, *release_selector, headers.clone())
+        let release = fetch_latest_release(author, repo_name, release_selector, headers.clone())
             .await
             .with_context(|| {
                 format!("Failed to fetch latest release of repo '{author}/{repo_name}'")
@@ -156,7 +164,7 @@ impl AssetSource for GithubSource {
 async fn fetch_latest_release(
     author: &str,
     repo_name: &str,
-    release_selector: GithubReleaseSelector,
+    release_selector: &GithubReleaseSelector,
     headers: HeaderMap<HeaderValue>,
 ) -> Result<GitHubRelease> {
     let url = format!("https://api.github.com/repos/{author}/{repo_name}/releases");
@@ -186,19 +194,26 @@ async fn fetch_latest_release(
     let releases = serde_json::from_str::<Vec<GitHubRelease>>(&text)
         .context("Failed to parse response as JSON")?;
 
-    match release_selector {
-        GithubReleaseSelector::Latest => releases
-            .into_iter()
-            .next()
-            .with_context(|| format!("No release found for repo '{author}/{repo_name}'")),
+    let GithubReleaseSelector { filter_title, typ } = release_selector;
 
-        GithubReleaseSelector::Stable => releases
-            .into_iter()
-            .find(|release| !release.prerelease)
-            .with_context(|| {
-                format!("Failed to fetch latest release of repo '{author}/{repo_name}'")
-            }),
-    }
+    releases
+        .into_iter()
+        .find(|release| {
+            (match typ {
+                GithubReleaseType::Latest => true,
+                GithubReleaseType::Stable => !release.prerelease,
+            }) && filter_title.as_ref().is_none_or(|filter| {
+                release
+                    .name
+                    .as_deref()
+                    .is_some_and(|name| filter.is_match(name))
+            })
+        })
+        .with_context(|| {
+            format!(
+                "Failed to fetch release with provided criterias for repo '{author}/{repo_name}'"
+            )
+        })
 }
 
 #[derive(Deserialize)]

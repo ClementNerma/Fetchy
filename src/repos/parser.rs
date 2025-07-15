@@ -9,7 +9,7 @@ use regex::Regex;
 use crate::sources::{
     ArchiveFormat, AssetType, BinaryInArchive,
     direct::DirectSource,
-    github::{GitHubVersionExtraction, GithubReleaseSelector, GithubSource},
+    github::{GitHubVersionExtraction, GithubReleaseSelector, GithubReleaseType, GithubSource},
     pattern::Pattern,
 };
 
@@ -167,7 +167,15 @@ pub fn repository() -> impl Parser<Repository> {
             .atomic_err("expected a valid GitHub version extraction model"),
         )
         .then_ignore(char(')').critical_auto_msg())
-        .then(ms.then(just("[prelease]")).or_not())
+        .then(s.then(just("[prelease]")).or_not())
+        .then(
+            s.ignore_then(just("[title"))
+                .ignore_then(ms)
+                .ignore_then(pattern)
+                .then_ignore(ms)
+                .then_ignore(char(']'))
+                .or_not(),
+        )
         .then_ignore(ms)
         .then_ignore(char('{').critical_auto_msg())
         .then(
@@ -178,15 +186,18 @@ pub fn repository() -> impl Parser<Repository> {
         )
         .then_ignore(char('}').critical_auto_msg())
         .map(
-            |((((author, repo_name), version), prelease), asset)| GithubSource {
+            |(((((author, repo_name), version), prelease), filter_title), asset)| GithubSource {
                 author,
                 repo_name,
                 version,
                 asset,
-                release_selector: if prelease.is_some() {
-                    GithubReleaseSelector::Latest
-                } else {
-                    GithubReleaseSelector::Stable
+                release_selector: GithubReleaseSelector {
+                    filter_title,
+                    typ: if prelease.is_some() {
+                        GithubReleaseType::Latest
+                    } else {
+                        GithubReleaseType::Stable
+                    },
                 },
             },
         );
