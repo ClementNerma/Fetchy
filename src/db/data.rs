@@ -21,9 +21,6 @@ pub struct SourcedRepository {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PackageVersion(pub String);
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InstalledPackage {
     pub manifest: PackageManifest,
     pub repo_name: String,

@@ -11,8 +11,8 @@ use crate::{
 
 pub fn resolve_pkg_by_name(
     name: impl AsRef<str>,
-    repos: &BTreeMap<String, Repository>,
-) -> Result<ResolvedPkg> {
+    repos: &'_ BTreeMap<String, Repository>,
+) -> Result<ResolvedPkg<'_, '_>> {
     let name = name.as_ref();
 
     let mut candidates = repos

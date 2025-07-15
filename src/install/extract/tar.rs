@@ -16,7 +16,7 @@ impl<R: Read + Unpin> TarReader<R> {
         }
     }
 
-    pub fn iter(&mut self) -> Result<TarReaderIter<R>> {
+    pub fn iter(&mut self) -> Result<TarReaderIter<'_, R>> {
         let entries = self
             .archive
             .entries()

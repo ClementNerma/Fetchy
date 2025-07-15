@@ -20,7 +20,7 @@ impl<R: Read + Seek> ZipReader<R> {
         })
     }
 
-    pub fn iter(&mut self) -> ZipReaderIter<R> {
+    pub fn iter(&mut self) -> ZipReaderIter<'_, R> {
         ZipReaderIter {
             files: (0..self.archive.len()),
             archive: &mut self.archive,
