@@ -206,7 +206,7 @@ async fn fetch_latest_release(
                 release
                     .name
                     .as_deref()
-                    .is_some_and(|name| filter.is_match(name))
+                    .is_some_and(|name| filter.is_match(name.trim()))
             })
         })
         .with_context(|| {
@@ -216,7 +216,7 @@ async fn fetch_latest_release(
         })
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct GitHubRelease {
     name: Option<String>,
     assets: Vec<GitHubReleaseAsset>,
@@ -224,7 +224,7 @@ struct GitHubRelease {
     prerelease: bool,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct GitHubReleaseAsset {
     browser_download_url: String,
     name: String,

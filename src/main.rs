@@ -368,7 +368,7 @@ async fn inner(action: Action) -> Result<()> {
         Action::Search {
             pattern,
             in_repos,
-            show_installed,
+            hide_installed,
         } => {
             if db.repositories.is_empty() {
                 warn!("No registered repository");
@@ -392,20 +392,27 @@ async fn inner(action: Action) -> Result<()> {
                 })
                 .collect::<Vec<_>>();
 
-            if !show_installed {
-                let installed = db
-                    .installed
-                    .values()
-                    .map(|installed| {
-                        (
-                            installed.repo_name.as_str(),
-                            installed.manifest.name.as_str(),
-                        )
-                    })
-                    .collect::<HashSet<_>>();
+            #[derive(Hash, PartialEq, Eq)]
+            struct Installed<'a> {
+                repo_name: &'a str,
+                pkg_name: &'a str,
+            }
 
+            let installed = db
+                .installed
+                .values()
+                .map(|installed| Installed {
+                    repo_name: installed.repo_name.as_str(),
+                    pkg_name: installed.manifest.name.as_str(),
+                })
+                .collect::<HashSet<_>>();
+
+            if hide_installed {
                 results.retain(|(repo_name, manifest)| {
-                    !installed.contains(&(repo_name.as_str(), manifest.name.as_str()))
+                    !installed.contains(&Installed {
+                        repo_name: repo_name.as_str(),
+                        pkg_name: manifest.name.as_str(),
+                    })
                 });
             }
 
@@ -440,7 +447,14 @@ async fn inner(action: Action) -> Result<()> {
 
             table.add_rows(results.into_iter().map(|(repo_name, manifest)| {
                 [
-                    Cell::new(&manifest.name).fg(Color::Yellow),
+                    if installed.contains(&Installed {
+                        repo_name,
+                        pkg_name: &manifest.name,
+                    }) {
+                        Cell::new(format!("{} (installed)", manifest.name)).fg(Color::Green)
+                    } else {
+                        Cell::new(&manifest.name).fg(Color::Yellow)
+                    },
                     Cell::new(repo_name).fg(Color::Blue),
                 ]
             }));

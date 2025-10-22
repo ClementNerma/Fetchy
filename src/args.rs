@@ -80,8 +80,8 @@ pub enum Action {
         #[clap(short = 'r', long, help = "Search in a specific set of repositories")]
         in_repos: Vec<String>,
 
-        #[clap(short, long, help = "Show installed packages as well")]
-        show_installed: bool,
+        #[clap(long, help = "Hide installed packages")]
+        hide_installed: bool,
     },
 
     #[clap(about = "Add a repository")]
