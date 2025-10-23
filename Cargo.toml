@@ -18,12 +18,15 @@ flate2 = "1.1.2"
 indicatif = "0.18.0"
 jiff = { version = "0.2.15", features = ["serde"] }
 log = { version = "0.4.27", features = ["std"] }
-openssl-sys = { version = "0.9.109", features = ["vendored"] }
 parsy = { version = "0.15.4", features = ["error-reporting"] }
 paste = "1.0.15"
 rapidfuzz = "0.5.0"
 regex = "1.11.1"
-reqwest = "0.12.22"
+reqwest = { version = "0.12.22", default-features = false, features = [
+    "http2",
+    "gzip",
+    "rustls-tls",
+] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 tar = "0.4.44"
