@@ -127,7 +127,7 @@ impl AssetSource for GithubSource {
         if filtered_assets.len() > 1 {
             bail!(
                 "Multiple entries matched the asset regex ({}):\n{}",
-                asset_pattern.to_string(),
+                **asset_pattern,
                 join_iter(
                     filtered_assets
                         .into_iter()

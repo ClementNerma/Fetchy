@@ -44,7 +44,7 @@ pub fn progress_bar(
 pub async fn confirm() -> Result<bool> {
     tokio::task::spawn_blocking(|| {
         Select::new()
-            .items(&["Continue", "Abort"])
+            .items(["Continue", "Abort"])
             .interact()
             .map(|choice| choice == 0)
             .context("Failed to get user choice")
