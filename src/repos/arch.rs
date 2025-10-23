@@ -32,7 +32,7 @@ macro_rules! supported_platforms {
 }
 
 // List of all supported CPU architectures
-supported_platforms!(target_arch as CpuArch => x86_64, aarch64);
+supported_platforms!(target_arch as CpuArch => x86_64, aarch64, arm);
 
 // List of all supported target OSes
 supported_platforms!(target_os as System => linux, windows);

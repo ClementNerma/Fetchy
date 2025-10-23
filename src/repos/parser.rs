@@ -42,6 +42,7 @@ pub fn repository() -> impl Parser<Repository> {
     let cpu_arch = choice::<CpuArch, _>((
         just("x86_64").to(CpuArch::x86_64),
         just("aarch64").to(CpuArch::aarch64),
+        just("arm").to(CpuArch::arm),
     ))
     .atomic_err("expected a valid CPU architecture");
 
