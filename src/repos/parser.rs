@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use parsy::{
-    Parser,
-    helpers::{char, choice, filter, just, newline, whitespaces},
+    Parser, ParserConstUtils,
+    parsers::helpers::{char, choice, filter, just, newline, whitespaces},
 };
 use regex::Regex;
 
@@ -284,6 +284,6 @@ pub fn repository() -> impl Parser<Repository> {
 
 // Usage: .debug(simple_debug) after any parser
 #[allow(dead_code)]
-fn simple_debug<T: std::fmt::Debug>(d: parsy::tails::DebugType<'_, '_, T>) {
+fn simple_debug<T: std::fmt::Debug>(d: parsy::parsers::DebugType<'_, '_, T>) {
     println!("{d:#?}");
 }

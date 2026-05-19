@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result, anyhow, bail};
 use colored::Colorize;
-use parsy::{ErrorReport, Parser};
+use parsy::{ErrorReport, ParserNonConstUtils};
 use serde::{Deserialize, Serialize};
 use tokio::{fs, task::JoinSet};
 

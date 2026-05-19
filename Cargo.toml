@@ -7,33 +7,32 @@ license = "Apache-2.0"
 repository = "https://github.com/ClementNerma/Fetchy"
 
 [dependencies]
-anyhow = "1.0.100"
+anyhow = "1.0.102"
 bzip2 = "0.6.1"
-clap = { version = "4.5.50", features = ["derive"] }
-colored = "3.0.0"
-comfy-table = "7.2.1"
+clap = { version = "4.6.1", features = ["derive"] }
+colored = "3.1.1"
+comfy-table = "7.2.2"
 dialoguer = { version = "0.12.0", default-features = false }
 dirs = "6.0.0"
-flate2 = "1.1.5"
-indicatif = "0.18.1"
-jiff = { version = "0.2.15", features = ["serde"] }
-log = { version = "0.4.28", features = ["std"] }
-parsy = { version = "0.15.8", features = ["error-reporting"] }
+flate2 = "1.1.9"
+indicatif = "0.18.4"
+jiff = { version = "0.2.24", features = ["serde"] }
+log = { version = "0.4.29", features = ["std"] }
+parsy = { version = "0.16.3", features = ["error-reporting"] }
 paste = "1.0.15"
 rapidfuzz = "0.5.0"
-regex = "1.12.2"
-reqwest = { version = "0.12.24", default-features = false, features = [
+regex = "1.12.3"
+reqwest = { version = "0.13.3", default-features = false, features = [
     "http2",
     "gzip",
-    "rustls-tls",
 ] }
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.145"
-tar = "0.4.44"
-tempfile = "3.23.0"
-tokio = { version = "1.48.0", features = ["fs", "macros", "rt-multi-thread"] }
+serde_json = "1.0.149"
+tar = "0.4.45"
+tempfile = "3.27.0"
+tokio = { version = "1.52.3", features = ["fs", "macros", "rt-multi-thread"] }
 xz = "0.1.0"
-zip = { version = "6.0.0", default-features = false, features = [
+zip = { version = "8.6.0", default-features = false, features = [
     "deflate",
     "deflate64",
 ] }
