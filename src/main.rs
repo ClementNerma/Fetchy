@@ -523,7 +523,7 @@ async fn inner(action: Action) -> Result<()> {
             db.update(|db| {
                 let mut fetched = fetched.into_iter();
 
-                for (_, repo) in db.repositories.iter_mut() {
+                for repo in db.repositories.values_mut() {
                     let fetched = fetched.next().unwrap();
 
                     // Just to be safe
